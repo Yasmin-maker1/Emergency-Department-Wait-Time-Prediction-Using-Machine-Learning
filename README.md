@@ -107,9 +107,9 @@ You can also upload the contents of the `latex/` folder to Overleaf and compile 
 
 | Name | Role |
 |------|------|
-| Yasmin Rocio Orduz Landazabal | Team Lead / Introduction & Synthesis |
+| Vandan Patel | Team Lead / Introduction & Synthesis |
 | Annagrace Howell | Literature Review — Articles 1, 2 & 3 |
-| Vandan Patel | Literature Review — Articles 4, 5 & 6 / Developer |
+| Yasmin Rocio Orduz Landazabal | Literature Review — Articles 4, 5 & 6 / Developer |
 
 ---
 
