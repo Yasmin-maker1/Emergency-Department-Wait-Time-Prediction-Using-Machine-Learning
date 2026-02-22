@@ -1,124 +1,33 @@
-# Emergency-Department-Wait-Time-Prediction-Using-Machine-Learning
+1. Project Title
+Emergency Department Wait Time Prediction Using Machine Learning: A Systematic Literature Review
 
-### Systematic Literature Review — Data Science & Machine Learning Course
+2. Brief Overview
+This project is a Systematic Literature Review (SLR) that analyzes six peer-reviewed research articles (published between 2022 and 2025) focusing on supervised machine learning approaches for predicting patient wait times and length of stay in Emergency Departments. The study identifies a shift toward gradient boosting models (XGBoost, LightGBM) and highlights current research gaps such as the need for continuous regression, triage-level segmentation, and SHAP-based interpretability using public datasets like MIMIC-IV-ED.
 
+3. Template Used
+IEEE Template (IEEEtran conference class).
 
-![Status](https://img.shields.io/badge/Status-In%20Progress-yellow)
-![Dataset](https://img.shields.io/badge/Dataset-MIMIC--IV--ED-blue)
-![Tools](https://img.shields.io/badge/Tools-Python%20%7C%20scikit--learn%20%7C%20XGBoost%20%7C%20SHAP-green)
+4. Steps to Compile Locally
+Since you have a single main.tex file, follow these steps to generate the PDF:
 
----
+Install a LaTeX Distribution:
 
-## Project Overview
+Windows: MiKTeX or TeX Live.
 
-This repository contains the Systematic Literature Review (SLR) for our machine learning course project. The project investigates how supervised machine learning can predict patient wait times in Emergency Departments (EDs) using the publicly available MIMIC-IV-ED dataset.
+Mac: MacTeX.
 
-ED overcrowding is a recognized global healthcare problem. Prolonged wait times are associated with increased patient mortality, reduced care quality, and higher rates of patients leaving without being seen. By training ML models on routinely collected triage data, we aim to produce accurate, interpretable wait time predictions that can support real-time clinical decision-making.
+Linux: sudo apt-get install texlive-full.
 
----
+Open the File: Use a LaTeX editor like TeXstudio, VS Code (with LaTeX Workshop extension), or Texmaker.
 
-## Research Question
+Compile Sequence: Because the document contains citations (\cite) and a bibliography section, you must run the compiler in this specific order to link the references correctly:
 
-How can supervised machine learning algorithms trained on ED triage data accurately predict patient wait times, and what approaches produce the most clinically interpretable and generalizable models?
+Step 1: Run pdflatex main.tex (Generates the initial PDF layout).
 
----
+Step 2: Run bibtex main (Processes the citations).
 
-## Dataset
+Step 3: Run pdflatex main.tex (Incorporates the bibliography).
 
-**MIMIC-IV-ED — Medical Information Mart for Intensive Care IV, Emergency Department Module**
+Step 4: Run pdflatex main.tex (Fixes the cross-references and numbering).
 
-| Property | Details |
-|----------|---------|
-| Source | Beth Israel Deaconess Medical Center, Boston, MA |
-| Time Period | 2011 – 2019 |
-| Size | ~425,000 ED visits |
-| Access | Free (requires PhysioNet account + data use agreement) |
-| Link | https://physionet.org/content/mimic-iv-ed/2.2/ |
-
-> **Note:** Do NOT upload the raw dataset files to this repository. Each team member must create a free PhysioNet account and sign the data use agreement independently to download the data.
-
----
-
-## Tools & Technologies
-
-| Tool | Purpose |
-|------|---------|
-| Python 3.x | Main programming language |
-| pandas & NumPy | Data loading, cleaning, and manipulation |
-| scikit-learn | Baseline ML models (Random Forest, Logistic Regression) |
-| XGBoost / LightGBM | Primary gradient boosting predictors |
-| SHAP | Model interpretability and feature importance |
-| matplotlib & seaborn | Data visualization |
-| LaTeX (IEEE template) | Academic document formatting |
-| Overleaf | Collaborative LaTeX editing (linked to this repository) |
-
----
-
-## Repository Structure
-```
-ED-WaitTime-Prediction-SLR/
-│
-├── README.md
-│
-├── latex/
-│   ├── main.tex               # Main LaTeX source file (IEEE template)
-│   ├── references.bib         # Bibliography file
-│   └── sections/
-│       ├── abstract.tex
-│       ├── introduction.tex
-│       ├── methodology.tex
-│       ├── literature_review.tex
-│       └── synthesis_conclusion.tex
-│
-├── docs/
-│   ├── Literature_Review_ED_WaitTime.docx
-│   └── Literature_Review_ED_WaitTime.xlsx
-│
-└── Literature_Review_ED_WaitTime.pdf
-```
-
----
-
-## How to Compile the LaTeX Document Locally
-
-**Requirements:** TeX Live, MiKTeX, or MacTeX installed on your machine.
-```bash
-# 1. Clone the repository
-git clone https://github.com/YOUR-USERNAME/YOUR-REPO-NAME.git
-cd YOUR-REPO-NAME
-
-# 2. Navigate to the latex folder
-cd latex
-
-# 3. Compile (run the sequence below for references to resolve correctly)
-pdflatex main.tex
-bibtex main
-pdflatex main.tex
-pdflatex main.tex
-
-# 4. Output: main.pdf
-```
-
-You can also upload the contents of the `latex/` folder to Overleaf and compile directly there without any local installation.
-
----
-
-## Team Members
-
-| Name | Role |
-|------|------|
-| Vandan Patel | Team Lead / Introduction & Synthesis |
-| Annagrace Howell | Literature Review — Articles 1, 2 & 3 |
-| Yasmin Rocio Orduz Landazabal | Literature Review — Articles 4, 5 & 6 / Developer |
-
----
-
-## Project Status
-
-| Milestone | Due Date | Status |
-|-----------|----------|--------|
-| Topic Selection | Week 1 | Done |
-| Literature Collection | Week 2 | Done |
-| SLR Document (LaTeX) | Feb 21, 2026 | In Progress |
-| PowerPoint Presentation | Milestone 2 | Pending |
-| Project Implementation | TBD | Pending |
+View Output: The final document will be saved as main.pdf in your project folder.
