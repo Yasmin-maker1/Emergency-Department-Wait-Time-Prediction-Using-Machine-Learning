@@ -1,33 +1,60 @@
-1. Project Title
-Emergency Department Wait Time Prediction Using Machine Learning: A Systematic Literature Review
+# Emergency Department Wait Time Prediction: Systematic Literature Review
 
-2. Brief Overview
-This project is a Systematic Literature Review (SLR) that analyzes six peer-reviewed research articles (published between 2022 and 2025) focusing on supervised machine learning approaches for predicting patient wait times and length of stay in Emergency Departments. The study identifies a shift toward gradient boosting models (XGBoost, LightGBM) and highlights current research gaps such as the need for continuous regression, triage-level segmentation, and SHAP-based interpretability using public datasets like MIMIC-IV-ED.
+## Project Overview
+This repository contains a Systematic Literature Review (SLR) exploring the application of Machine Learning (ML) to predict Emergency Department (ED) wait times and length of stay (LOS). 
 
-3. Template Used
-IEEE Template (IEEEtran conference class).
+By synthesizing research from 2022–2025, this project evaluates the effectiveness of gradient boosting models (XGBoost, LightGBM) and identifies critical research gaps. Our project specifically addresses these gaps by implementing:
+* **Continuous Regression:** Moving beyond binary classification to predict exact wait times in minutes.
+* **Triage-Level Segmentation:** Analyzing performance across different ESI (Emergency Severity Index) levels.
+* **Explainable AI:** Utilizing SHAP (SHapley Additive exPlanations) for clinical transparency.
+* **Reproducibility:** Benchmarking against the publicly available MIMIC-IV-ED dataset.
 
-4. Steps to Compile Locally
-Since you have a single main.tex file, follow these steps to generate the PDF:
+---
 
-Install a LaTeX Distribution:
+## Authors
+* **Vandan Patel** - [vp04406@georgiasouthern.edu](mailto:vp04406@georgiasouthern.edu)
+* **Annagrace Howell** - [ag29516@georgiasouthern.edu](mailto:ag29516@georgiasouthern.edu)
+* **Yasmin Rocio Orduz Landazabal** - [yo00553@georgiasouthern.edu](mailto:yo00553@georgiasouthern.edu)
 
-Windows: MiKTeX or TeX Live.
+---
 
-Mac: MacTeX.
+## Technical Specifications
+* **Template:** IEEE Conference Format (`IEEEtran`)
+* **Source File:** `main.tex`
+* **Language:** LaTeX
 
-Linux: sudo apt-get install texlive-full.
+---
 
-Open the File: Use a LaTeX editor like TeXstudio, VS Code (with LaTeX Workshop extension), or Texmaker.
+## Steps to Compile Locally
 
-Compile Sequence: Because the document contains citations (\cite) and a bibliography section, you must run the compiler in this specific order to link the references correctly:
+To generate the final PDF from the source files, follow these instructions:
 
-Step 1: Run pdflatex main.tex (Generates the initial PDF layout).
+### Prerequisites
+Ensure you have a LaTeX distribution installed (e.g., **MiKTeX**, **TeX Live**, or **MacTeX**).
 
-Step 2: Run bibtex main (Processes the citations).
+### Compilation Commands
+Run the following sequence in your terminal or LaTeX editor (such as TeXstudio or VS Code) to ensure all citations and references are correctly linked:
 
-Step 3: Run pdflatex main.tex (Incorporates the bibliography).
+1.  **Generate initial layout:**
+    ```bash
+    pdflatex main.tex
+    ```
+2.  **Process citations:**
+    ```bash
+    bibtex main
+    ```
+3.  **Update bibliography:**
+    ```bash
+    pdflatex main.tex
+    ```
+4.  **Finalize references and numbering:**
+    ```bash
+    pdflatex main.tex
+    ```
 
-Step 4: Run pdflatex main.tex (Fixes the cross-references and numbering).
+The resulting file will be `main.pdf`.
 
-View Output: The final document will be saved as main.pdf in your project folder.
+---
+
+## Project Context
+This work was conducted as part of the **CSC7090 Data Science and Machine Learning** course project (Team 3) at **Georgia Southern University**, February 2026.
