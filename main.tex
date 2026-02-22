@@ -1,0 +1,325 @@
+\documentclass[conference]{IEEEtran}
+\IEEEoverridecommandlockouts
+
+\usepackage{cite}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{algorithmic}
+\usepackage{graphicx}
+\usepackage{textcomp}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{multirow}
+\usepackage{url}
+\usepackage{tabularx}
+
+\hypersetup{
+    colorlinks=true,
+    linkcolor=blue,
+    urlcolor=blue,
+    citecolor=blue
+}
+
+\def\BibTeX{{\rm B\kern-.05em{\sc i\kern-.025em b}\kern-.08em
+    T\kern-.1667em\lower.7ex\hbox{E}\kern-.125emX}}
+
+\begin{document}
+
+\title{Emergency Department Wait Time Prediction Using Machine Learning: A Systematic Literature Review}
+
+\author{
+    \IEEEauthorblockN{Vandan Patel}
+    \IEEEauthorblockA{\textit{Department of Computer Science} \\
+    Georgia Southern University \\
+    vp04406@georgiasouthern.edu}
+    \and
+    \IEEEauthorblockN{Annagrace Howell}
+    \IEEEauthorblockA{\textit{Department of Computer Science} \\
+    Georgia Southern University \\
+    ag29516@georgiasouthern.edu}
+    \and
+    \IEEEauthorblockN{Yasmin Rocio Orduz Landazabal}
+    \IEEEauthorblockA{\textit{Department of Computer Science} \\
+    Georgia Southern University \\
+    yo00553@georgiasouthern.edu}
+}
+
+\maketitle
+
+\begin{abstract}
+Emergency department (ED) overcrowding is a global healthcare crisis associated with increased patient mortality, reduced care quality, and significant operational inefficiencies. Accurate prediction of patient wait times at the point of triage can empower clinical staff to proactively allocate resources and improve patient communication. This systematic literature review (SLR) identifies, evaluates, and synthesizes six peer-reviewed research articles (2022--2025) from IEEE Xplore, PubMed, ACM Digital Library, and Springer on machine learning approaches for ED wait time and length-of-stay prediction. Our review reveals that gradient boosting ensemble methods consistently achieve the strongest predictive performance in ED contexts, while the MIMIC-IV-ED public dataset has emerged as the most reproducible benchmark. Key gaps identified include the absence of continuous wait time regression, triage-level segmentation, and SHAP-based interpretability. Our project addresses these gaps through regression-based ML with SHAP explainability and triage-stratified analysis on the MIMIC-IV-ED dataset.
+\end{abstract}
+
+\begin{IEEEkeywords}
+emergency department, wait time prediction, machine learning, MIMIC-IV-ED, triage, XGBoost, SHAP, systematic literature review, length of stay, patient flow
+\end{IEEEkeywords}
+
+% =============================================================
+\section{Introduction}
+% =============================================================
+
+\subsection{Background and Motivation}
+
+Emergency departments serve as the primary point of entry for acute, unscheduled healthcare across the globe. Rising patient volumes, resource constraints, and the unpredictable nature of emergency presentations have made ED overcrowding a recognized public health crisis. Prolonged wait times---defined as the interval between patient arrival and physician evaluation---are directly associated with increased in-hospital mortality, patient dissatisfaction, and a higher rate of patients leaving without being seen (LWBS).
+
+Despite the severity of this problem, most EDs continue to rely on manual triage scoring systems such as the Emergency Severity Index (ESI) and the Manchester Triage Scale (MTS) to prioritize care. While these systems effectively rank urgency, they do not provide quantitative estimates of how long a patient will wait. This gap between urgency classification and wait time transparency is precisely where machine learning (ML) can make a meaningful clinical contribution.
+
+\subsection{Problem Definition}
+
+This literature review is guided by the following central research question: \textit{How can supervised machine learning algorithms trained on routinely collected ED triage data accurately predict patient wait times, and what methodological approaches produce the most clinically interpretable and generalizable models?}
+
+\subsection{Objectives and Novel Contributions}
+
+The specific objectives of this review are:
+\begin{enumerate}
+    \item Identify and synthesize the most relevant and high-quality ML research on ED wait time and length-of-stay prediction published between 2022 and 2025.
+    \item Evaluate the methodological quality, datasets, and model types used across studies.
+    \item Identify recurring research gaps, particularly regarding interpretability, triage-level segmentation, and public dataset availability.
+    \item Establish a clear connection between prior literature and the novel contributions of our project.
+\end{enumerate}
+
+Our project contributes to this field by applying regression-based gradient boosting and random forest models to the publicly available MIMIC-IV-ED dataset \cite{johnson2023mimic}, incorporating SHAP-based feature importance \cite{lundberg2017unified}, and segmenting predictions by ESI triage level---three dimensions largely absent from existing work.
+
+\subsection{Scope of This Review}
+
+This review covers six peer-reviewed articles from reputable sources (BMC, PLOS Digital Health, Nature Scientific Data, Frontiers, Springer, and ScienceDirect/Elsevier), all published between 2022 and 2025. The scope is limited to supervised ML applied to ED wait time prediction, length of stay (LOS) prediction, and closely related ED outcome prediction tasks that share the same input feature space and methodology.
+
+% =============================================================
+\section{Methodology}
+% =============================================================
+
+\subsection{Search Strategy}
+
+The literature search was conducted systematically across the following academic databases, selected for their coverage of computer science, health informatics, and clinical medicine:
+\begin{itemize}
+    \item IEEE Xplore
+    \item ACM Digital Library
+    \item PubMed / MEDLINE
+    \item Springer Link
+    \item ScienceDirect (Elsevier)
+    \item PLOS Digital Health
+\end{itemize}
+
+\subsection{Keywords Used}
+
+The following keyword combinations were used across all databases, adapted to each database's search syntax as needed:
+\begin{itemize}
+    \item ``Emergency department wait time prediction machine learning''
+    \item ``ED length of stay ML systematic review''
+    \item ``MIMIC-IV-ED machine learning prediction''
+    \item ``Triage machine learning emergency department''
+    \item ``XGBoost random forest hospital wait time''
+    \item ``Interpretable ML healthcare SHAP emergency''
+    \item ``ED overcrowding prediction deep learning''
+\end{itemize}
+
+\subsection{Inclusion and Exclusion Criteria}
+
+Table~\ref{tab:criteria} summarizes the inclusion and exclusion criteria applied during the article selection process.
+
+\begin{table}[h]
+\caption{Inclusion and Exclusion Criteria}
+\label{tab:criteria}
+\centering
+\begin{tabularx}{\columnwidth}{|X|X|}
+\hline
+\textbf{Inclusion Criteria} & \textbf{Exclusion Criteria} \\
+\hline
+Published 2022--2025 & Published before 2022 \\
+\hline
+English-language full-text available & Conference abstracts without full text \\
+\hline
+Peer-reviewed journal or SLR from IEEE, ACM, Springer, or top-tier journals & Non-peer-reviewed sources (blogs, unreviewed preprints) \\
+\hline
+Supervised ML applied to ED prediction tasks & Studies focused on ICU or inpatient settings only \\
+\hline
+Quantitative performance metrics reported (AUC, RMSE, MAE, F1) & Studies without quantitative model evaluation \\
+\hline
+Addresses ED wait time, LOS, or triage prediction & Pure administrative studies without ML component \\
+\hline
+\end{tabularx}
+\end{table}
+
+\subsection{Article Selection Process}
+
+A total of 6 articles were selected after applying the criteria above. The selection prioritized: (1) recency (2022--2025), (2) methodological rigor, (3) source quality, and (4) direct alignment with our project's goals of ED wait time prediction using public data. Two of the six articles are systematic literature reviews (SLRs) providing high-level synthesis; four are empirical studies providing methodological detail and benchmark results.
+
+% =============================================================
+\section{Literature Review}
+% =============================================================
+
+\subsection{Thematic Overview}
+
+The six reviewed articles cluster around three major themes: (1) systematic reviews of ML for ED triage and patient flow, (2) empirical ML models for ED wait time and length-of-stay prediction, and (3) benchmark datasets and interpretability frameworks. Table~\ref{tab:summary} provides a consolidated comparison.
+
+\begin{table*}[t]
+\caption{Summary Comparison of Reviewed Articles}
+\label{tab:summary}
+\centering
+\begin{tabularx}{\textwidth}{|p{0.5cm}|p{3.5cm}|p{1.2cm}|p{2.5cm}|p{2.5cm}|p{2.5cm}|p{2.5cm}|}
+\hline
+\textbf{\#} & \textbf{Paper Title (Short)} & \textbf{Year} & \textbf{Dataset} & \textbf{Model(s)} & \textbf{Best Metric} & \textbf{Key Gap} \\
+\hline
+1 & ML \& NLP for ED Triage (SLR) \cite{porto2024} & 2024 & Multi-study & BERT, SVM, DT & AUC (varies) & No wait time regression; no SHAP \\
+\hline
+2 & Admission from Triage (SLR) \cite{jacep2025} & 2025 & 31 studies & RF, XGBoost, LR & AUC 0.81--0.93 & Binary only; no public dataset \\
+\hline
+3 & XGBoost Fairness in ED Wait Times \cite{wang2025} & 2025 & 173,856 visits & XGBoost + SHAP & AUC $\approx$0.72 & Binary only; single center \\
+\hline
+4 & MIMIC-IV-ED Benchmark \cite{xie2022} & 2022 & MIMIC-IV-ED ($\sim$400K) & GB, RF, MLP & AUC varies & No wait time task; no SHAP \\
+\hline
+5 & ML for ED Length of Stay \cite{ricciardi2024} & 2024 & 496,172 visits & RF, DT, SVM & AUC $\approx$0.80 & Binary; no SHAP; no segmentation \\
+\hline
+6 & Wait Time + NLP Prediction \cite{seo2024} & 2024 & 271,143 patients & LightGBM + NLP & MAE (improved) & Single center; no SHAP; no fairness \\
+\hline
+\end{tabularx}
+\end{table*}
+
+\subsection{Porto (2024) --- ML \& NLP for ED Triage [SLR]}
+
+Porto et al. \cite{porto2024} present a PRISMA 2020 systematic review analyzing how ML and NLP algorithms improve triage accuracy across emergency departments. The review searched five databases (Web of Science, PubMed, Scopus, IEEE Xplore, ACM Digital Library) from inception through October 2023, assessing risk of bias via PROBAST. Models reviewed included decision trees, support vector machines, neural networks (LSTM, BERT), and NLP approaches (TF-IDF, word embeddings).
+
+\textbf{Key Findings:} ML models consistently outperformed traditional triage scoring scales. Deep learning (LSTM, BERT) showed strong results but required larger datasets. High methodological heterogeneity was observed across studies.
+
+\textbf{Strengths:} Broad multi-database search; rigorous PRISMA and PROBAST methodology; covers both structured ML and NLP; very recent (2024).
+
+\textbf{Limitations and Gaps:} Heterogeneity prevents quantitative meta-analysis. Most reviewed studies are retrospective and single-center. Few studies address model explainability or algorithmic fairness, and limited real-world deployment evidence exists. Continuous wait time regression is entirely absent.
+
+\textbf{Relevance to Our Project:} Establishes the ML triage landscape and validates the feature set (triage level, vital signs, demographics) that our project uses. Our project shifts the target from triage classification to continuous wait time regression and adds SHAP for interpretability---both gaps explicitly identified in this SLR.
+
+\subsection{Multiple Authors (2025) --- Admission Prediction from Triage [SLR]}
+
+This PRISMA-compliant SLR \cite{jacep2025} evaluated the methodological quality and performance of ML models trained on ED triage data for predicting inpatient admissions, applying both PROBAST and TRIPOD+AI appraisal frameworks. Searching five major databases (August 2014--August 2024), 700 articles were retrieved with 31 included after full screening. Models reviewed included logistic regression, random forest, gradient boosting, and neural networks.
+
+\textbf{Key Findings:} Seven studies with rigorous methodology achieved AUC-ROC of 0.81--0.93. Random forest and gradient boosting were top performers. Over 60\% of studies had significant risk of bias due to poor methodology reporting.
+
+\textbf{Strengths:} Comprehensive screening of 700 articles; dual quality assessment tools (PROBAST + TRIPOD+AI); very recent (2025); covers 10 years of evidence.
+
+\textbf{Limitations and Gaps:} Focuses exclusively on binary admission prediction, not wait time or LOS. Most included studies use single-center proprietary data, limiting reproducibility. Real-time deployment and model explainability receive limited attention.
+
+\textbf{Relevance to Our Project:} Confirms that triage features (vitals, ESI level, chief complaint) are strong ML predictors---exactly our input feature set. We extend the prediction target to continuous wait time regression and use MIMIC-IV-ED (a public dataset) to address the single-center reproducibility gap this SLR highlights.
+
+\subsection{Wang et al. (2025) --- XGBoost Fairness in ED Wait Times}
+
+Wang et al. \cite{wang2025} developed an interpretable XGBoost model for predicting prolonged ED wait times (defined as $\geq$30 minutes) in ESI-3 patients, conducting a systematic fairness assessment across demographic subgroups using SHAP values. The dataset comprised 173,856 ED visits (99,178 unique patients) from a single center.
+
+\textbf{Key Findings:} Approximately 50\% of ESI-3 visits had prolonged wait times. XGBoost achieved AUC $\approx$ 0.72. Performance disparities were found across race/ethnicity and insurance type subgroups. SHAP identified triage ESI level and arrival hour as the top predictors.
+
+\textbf{Strengths:} First formal fairness assessment in ED wait time prediction; SHAP interpretability; large real-world dataset; open-access publication; rigorous demographic subgroup analysis.
+
+\textbf{Limitations and Gaps:} Single-center study limits generalizability. Binary classification only---no continuous regression is performed. ESI-level segmentation is not explored. Fairness disparities are identified but no mitigation strategies are proposed.
+
+\textbf{Relevance to Our Project:} This paper directly mirrors our use case with the same prediction target (ED wait time), same model family (gradient boosting), and same interpretability tool (SHAP). It provides a direct methodological template and performance benchmark. We extend to continuous wait time regression, segment predictions by all 5 ESI triage levels, and use MIMIC-IV-ED for full reproducibility across institutions.
+
+\subsection{Xie et al. (2022) --- MIMIC-IV-ED Benchmark Suite}
+
+Xie et al. \cite{xie2022} created the first open-source benchmark dataset and pipeline for ED prediction using the MIMIC-IV-ED database ($\sim$400,000 ED visits, 2011--2019, Beth Israel Deaconess Medical Center, Boston). Three benchmark tasks were defined: hospitalization prediction, critical outcome prediction, and 72-hour reattendance. Models evaluated included Logistic Regression, Random Forest, Gradient Boosting, MLP, and Med2Vec, compared against clinical scores (MEWS, NEWS, REMS, CART).
+
+\textbf{Key Findings:} Gradient boosting and random forest outperformed all clinical scoring systems. Deep learning showed only marginal improvement over classical ML. The benchmark dataset and open-source code were published for community use.
+
+\textbf{Strengths:} Uses the same public dataset as our project (MIMIC-IV-ED); open-source reproducible pipeline published at GitHub; largest public ED benchmark; published in high-impact Nature journal.
+
+\textbf{Limitations and Gaps:} Does not address wait time prediction specifically (focuses on admission, critical outcome, reattendance). Single institution. No triage-level performance segmentation. No fairness or interpretability analysis.
+
+\textbf{Relevance to Our Project:} This paper uses our exact dataset (MIMIC-IV-ED) and provides the preprocessing pipeline we build upon. It also provides baseline model performance benchmarks we can directly compare against. We add wait time regression as a fourth prediction task, incorporating SHAP feature importance and ESI-level subgroup analysis.
+
+\subsection{Ricciardi et al. (2024) --- ML for ED Length of Stay}
+
+Ricciardi et al. \cite{ricciardi2024} evaluated and compared multiple ML classifiers for predicting prolonged ED length of stay ($\geq$4 hours) using a minimal set of routinely collected patient and workflow features. The dataset comprised 496,172 ED admissions (2014--2019) from the University Hospital of Salerno, Italy. Models compared included decision tree, random forest, logistic regression, Naive Bayes, SVM, k-NN, and neural network.
+
+\textbf{Key Findings:} 28.9\% of patients had prolonged ED-LOS. Random Forest achieved best performance (AUC $\approx$ 0.80). Triage priority code and arrival time were the most important features. Older patients ($>$64 years) and evening/night arrivals had the highest rates of prolonged stays.
+
+\textbf{Strengths:} Comprehensive multi-algorithm comparison; large real-world dataset (496K visits); minimal accessible features (replicable in many hospitals); open-access and recent (2024).
+
+\textbf{Limitations and Gaps:} Single-center European study with limited generalizability. Binary classification only with no continuous LOS or wait time estimation. No model interpretability (SHAP/LIME not applied). Triage-level subgroup performance is not reported.
+
+\textbf{Relevance to Our Project:} Validates that triage level, arrival time, and demographics are sufficient ML predictors in the ED setting---exactly the MIMIC-IV-ED feature set. Confirms Random Forest as a strong comparison baseline for our project. We extend with continuous wait time regression, SHAP interpretability, and triage-level segmentation.
+
+\subsection{Seo et al. (2024) --- Wait Time Prediction with NLP}
+
+Seo et al. \cite{seo2024} developed ML models integrating structured triage data with NLP-processed chief complaint text for joint prediction of hospitalization likelihood and ED waiting time. The dataset comprised 271,143 ED patients (June 2018--May 2022) from a single Korean hospital. Models evaluated included LightGBM, XGBoost, Random Forest, and Logistic Regression. A real-time clinical dashboard prototype was also developed.
+
+\textbf{Key Findings:} Adding NLP text features significantly improved both prediction tasks over structured-only models. LightGBM achieved the best overall performance. The dashboard prototype successfully integrated real-time wait time estimates, reducing patient anxiety in preliminary observations.
+
+\textbf{Strengths:} Novel combination of structured and unstructured NLP features; practical real-time dashboard prototype; large dataset; multi-algorithm comparison; published in a high-quality Springer operations research journal.
+
+\textbf{Limitations and Gaps:} Single-center Korean hospital limits generalizability. NLP pipeline requires high-quality free-text chief complaint data not universally available. Dashboard prototype was not clinically validated. No SHAP interpretability or demographic fairness analysis.
+
+\textbf{Relevance to Our Project:} Directly models our target outcome (ED waiting time) and demonstrates real-world deployment through a dashboard, aligning with our project goal of actionable outputs. We replicate the ML approach on MIMIC-IV-ED (public, globally reproducible), use structured features only for broader generalizability, and add SHAP and ESI-level segmentation.
+
+% =============================================================
+\section{Synthesis and Conclusion}
+% =============================================================
+
+\subsection{Overall Trends Across the Literature}
+
+A clear and consistent trend emerges across all six reviewed articles: gradient boosting ensemble methods (XGBoost, LightGBM, Random Forest) consistently outperform both traditional clinical scoring systems and simpler linear ML models for ED prediction tasks. This holds across different institutions, countries, and outcome variables---from triage classification to admission prediction to length-of-stay estimation.
+
+A second trend is the growing emphasis on model interpretability. Earlier work focused solely on predictive accuracy, but recent studies---particularly Wang et al. \cite{wang2025}---have begun incorporating SHAP values to explain model outputs at the individual patient level. This shift reflects growing recognition that clinical adoption requires not just accuracy but transparency.
+
+A third trend is the consolidation around public benchmark datasets. The work of Xie et al. \cite{xie2022} establishing the MIMIC-IV-ED benchmark has been widely cited and has begun to standardize how the field compares models---an important step toward reproducibility.
+
+\subsection{Identified Research Gaps}
+
+Despite notable progress, the following gaps recur systematically across the reviewed literature:
+
+\begin{itemize}
+    \item \textbf{Continuous wait time regression:} All studies reviewed use binary classification (prolonged vs. not). No study models wait time as a continuous variable for regression, which would be far more actionable clinically.
+    \item \textbf{Triage-level segmentation:} No study reports model performance broken down by ESI triage levels 1--5 separately. A Level-1 patient and a Level-4 patient have fundamentally different wait time dynamics.
+    \item \textbf{SHAP interpretability:} Only Wang et al. \cite{wang2025} uses SHAP. Four of the six studies use no interpretability tool or report only global feature importance from tree models.
+    \item \textbf{Public dataset reproducibility:} Four of six studies use proprietary hospital data unavailable to other researchers. Only Xie et al. \cite{xie2022} uses a public dataset (MIMIC-IV-ED), enabling reproducibility.
+    \item \textbf{Fairness across demographics:} Wang et al. \cite{wang2025} identifies significant performance disparities by race and insurance type but proposes no mitigation. No other study addresses this issue.
+\end{itemize}
+
+\subsection{How Our Project Addresses These Gaps}
+
+Our project is specifically designed to address the four most critical gaps identified above:
+
+\begin{enumerate}
+    \item \textbf{Continuous Regression:} We formulate ED wait time prediction as a continuous regression problem (predicting wait time in minutes) rather than binary classification, providing clinically precise estimates that can be displayed to staff and patients in real time.
+    \item \textbf{Triage-Level Segmentation:} We segment model training and evaluation by ESI triage level (levels 1--5), recognizing that the drivers and distributions of wait time differ fundamentally between patient severity classes.
+    \item \textbf{SHAP Interpretability:} We apply SHAP (SHapley Additive exPlanations) to every trained model, generating patient-level and population-level explanations of which features drive wait time predictions, directly supporting clinical adoption.
+    \item \textbf{Public Dataset (MIMIC-IV-ED):} We use the MIMIC-IV-ED public dataset exclusively, ensuring full reproducibility. Any researcher can download the dataset from PhysioNet \cite{johnson2023mimic}, run our code, and replicate our results.
+\end{enumerate}
+
+\subsection{Conclusion}
+
+The literature reviewed confirms that machine learning---particularly gradient boosting ensemble methods---is well-suited to predicting ED wait times and related operational outcomes. The field has matured significantly in recent years, with strong AUC-ROC values of 0.80--0.93 for classification tasks and growing attention to interpretability and fairness.
+
+However, no study to date has combined continuous wait time regression, ESI-level segmentation, SHAP interpretability, and a fully public dataset in a single coherent framework. Our project fills this gap, building directly on the methodological foundations of Xie et al. \cite{xie2022}, Wang et al. \cite{wang2025}, and Ricciardi et al. \cite{ricciardi2024} to deliver a reproducible, interpretable, and clinically actionable ED wait time prediction system using the MIMIC-IV-ED dataset.
+
+% =============================================================
+\section*{Acknowledgments}
+This literature review was conducted as part of the CSC7090 Data Science and Machine Learning course project, Team 3, February 2026.
+
+% =============================================================
+\begin{thebibliography}{00}
+
+\bibitem{porto2024}
+B. M. Porto, ``Improving triage performance in emergency departments using machine learning and natural language processing: a systematic review,'' \textit{BMC Emerg. Med.}, vol. 24, no. 1, p. 219, 2024. [Online]. Available: \url{https://doi.org/10.1186/s12873-024-01135-2}
+
+\bibitem{jacep2025}
+Multiple authors, ``Predicting inpatient admissions from emergency department triage using machine learning: a systematic review,'' \textit{JACEP Open}, Elsevier, 2025. [Online]. Available: \url{https://www.sciencedirect.com/science/article/pii/S2949761225000045}
+
+\bibitem{wang2025}
+Wang et al., ``Evaluating fairness of machine learning prediction of prolonged wait times in emergency department with interpretable eXtreme gradient boosting,'' \textit{PLOS Digit. Health}, vol. 4, no. 3, 2025. [Online]. Available: \url{https://doi.org/10.1371/journal.pdig.0000751}
+
+\bibitem{xie2022}
+F. Xie, J. Zhou, J. W. Lee et al., ``Benchmarking emergency department prediction models with machine learning and public electronic health records,'' \textit{Sci. Data}, vol. 9, p. 658, Oct. 2022. [Online]. Available: \url{https://doi.org/10.1038/s41597-022-01782-9}
+
+\bibitem{ricciardi2024}
+C. Ricciardi, M. R. Marino, T. A. Trunfio, M. Majolo, M. Romano, F. Amato, and G. Improta, ``Evaluation of different machine learning algorithms for predicting the length of stay in the emergency departments: a single-centre study,'' \textit{Front. Digit. Health}, vol. 5, p. 1323849, Jan. 2024. [Online]. Available: \url{https://doi.org/10.3389/fdgth.2023.1323849}
+
+\bibitem{seo2024}
+H. Seo, I. Ahn, H. Gwon et al., ``Prediction of hospitalization and waiting time within 24 hours of emergency department patients with unstructured text data,'' \textit{Health Care Manag. Sci.}, vol. 27, pp. 114--129, 2024. [Online]. Available: \url{https://doi.org/10.1007/s10729-023-09660-5}
+
+\bibitem{johnson2023mimic}
+A. Johnson et al., ``MIMIC-IV-ED (Version 2.2),'' \textit{PhysioNet}, Jan. 2023. [Online]. Available: \url{https://doi.org/10.13026/5ntk-km72}
+
+\bibitem{lundberg2017unified}
+S. M. Lundberg and S.-I. Lee, ``A unified approach to interpreting model predictions,'' in \textit{Advances in Neural Information Processing Systems}, vol. 30, 2017.
+
+\end{thebibliography}
+
+\end{document}
