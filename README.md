@@ -99,12 +99,12 @@ The resulting file will be `main.pdf`.
 
 ### What the Notebook Covers
 
-**Part A — Data Acquisition & Description (10 pts)**
+**Part A — Data Acquisition & Description**
 - Dataset source documentation (URL, license, access date)
 - Full data dictionary (17 features with name, type, description, example values)
 - Relevance statement connecting dataset to literature review findings
 
-**Part B — Data Wrangling & Preprocessing (20 pts)**
+**Part B — Data Wrangling & Preprocessing**
 - Missing value analysis with completeness visualization and justified imputation
 - Data type conversion (label encoding, ordinal casting)
 - Outlier detection using IQR method and Z-score method with clinical bounds winsorization
@@ -112,7 +112,7 @@ The resulting file will be `main.pdf`.
 - StandardScaler normalization with written justification
 - Before/after wrangling summary comparison table
 
-**Part C — Exploratory Data Analysis & Visualization (15 pts)**
+**Part C — Exploratory Data Analysis & Visualization**
 - 12 publication-quality figures with 2–4 sentence interpretations each
 - Distribution plots for ED LOS, vital signs, and engineered features (Figures 3–5)
 - Pearson correlation heatmap (Figure 6)
