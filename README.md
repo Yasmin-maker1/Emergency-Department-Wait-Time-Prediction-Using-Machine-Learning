@@ -35,6 +35,7 @@ By synthesizing research from 2022–2025, this project evaluates the effectiven
 ├── README.md
 ├── main.tex                                      # Milestone 1 — LaTeX source (IEEE format)
 ├── Team_3_Literature_Review.pdf                  # Milestone 1 — Compiled literature review PDF
+├── Machine_Learning_Project_Presentation.pptx    # Milestone 1 — Presentation slides
 ├── Machine_Learning_Project_Presentation.pdf     # Milestone 1 — Presentation slides
 ├── Team3_Milestone2_ED_WaitTime.ipynb            # Milestone 2 — Data wrangling & EDA notebook
 └── team3_ed_waittime_cleaned.csv                 # Milestone 2 — Cleaned ML-ready dataset
