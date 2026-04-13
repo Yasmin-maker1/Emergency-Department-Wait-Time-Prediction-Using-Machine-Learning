@@ -43,7 +43,7 @@ By synthesizing research from 2022–2025, this project evaluates the effectiven
 
 ---
 
-## Milestone 1 — Systematic Literature Review ✅
+## Milestone 1 — Systematic Literature Review 
 
 **Files:** `main.tex`, `Team_3_Literature_Review.pdf`, `Machine_Learning_Project_Presentation.pdf`
 
@@ -75,7 +75,7 @@ The resulting file will be `main.pdf`.
 
 ---
 
-## Milestone 2 — Data Collection, Wrangling & Visualization ✅
+## Milestone 2 — Data Collection, Wrangling & Visualization 
 
 **Notebook:** `Team3_Milestone2_ED_WaitTime.ipynb`
 **Cleaned Dataset:** `team3_ed_waittime_cleaned.csv`
