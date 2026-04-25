@@ -2,15 +2,16 @@
 
 ## Project Overview
 
-This repository contains the full project for **CSCI-7090-A-O1E — Data Science & Machine Learning** at Georgia Southern University. The project applies Machine Learning (ML) to predict Emergency Department (ED) wait times and length of stay (LOS) using the Hospital Emergency Room dataset from Kaggle.
+This repository contains the full project for **CSCI-7090-A-O1E — Data Science & Machine Learning** at Georgia Southern University. The project applies Machine Learning (ML) to predict Emergency Department (ED) length of stay (LOS) as a continuous variable using the publicly available Hospital Emergency Room Visits dataset (Kaggle, CC0 license).
 
-By synthesizing research from 2022–2025, this project evaluates the effectiveness of gradient boosting models (XGBoost, LightGBM) and addresses critical research gaps identified in our systematic literature review:
+We extend prior work along four axes typically treated in isolation in the recent ED-ML literature:
 
-- **Continuous Regression:** Moving beyond binary classification to predict exact wait times in minutes.
-- **Triage-Level Segmentation:** Analyzing performance across all 5 ESI (Emergency Severity Index) levels.
-- **Explainable AI:** Utilizing SHAP (SHapley Additive exPlanations) for clinical transparency.
-- **Reproducibility:** Using a publicly available dataset with no credentialing required.
-- **Fairness Analysis:** Assessing model performance across demographic subgroups (race, gender, age group).
+- **Continuous Regression:** predicting ED LOS in minutes rather than the binary "prolonged vs. not prolonged" classification used in most published studies.
+- **Triage-Level Segmentation:** evaluating model performance across all five Emergency Severity Index (ESI) levels rather than collapsing to a single pooled metric.
+- **Explainable AI:** applying SHAP TreeExplainer to the best gradient-boosted model and reporting global feature importance for clinical interpretability.
+- **Demographic Fairness Audit:** disaggregating MAE and RMSE across race/ethnicity, gender, and age group to surface subgroup-level disparities that pooled metrics hide.
+
+To our knowledge this is the first study to combine all four on a single publicly accessible dataset.
 
 ---
 
@@ -22,152 +23,182 @@ By synthesizing research from 2022–2025, this project evaluates the effectiven
 | Annagrace Howell | Developer | ag29516@georgiasouthern.edu |
 | Yasmin Rocio Orduz Landazabal | Data Analyst | yo00553@georgiasouthern.edu |
 
-**Instructor:** Ph.D. Vijayalakshmi Ramasamy
+**Instructor:** Prof. Vijayalakshmi Ramasamy, Ph.D.
 **Course:** CSCI-7090-A-O1E — Data Science & Machine Learning
 **Institution:** Georgia Southern University
+**Semester:** Spring 2026
 
 ---
 
 ## Repository Structure
 
-```
-/
-├── README.md
-├── main.tex                                      # Milestone 1 — LaTeX source (IEEE format)
-├── Team_3_Literature_Review.pdf                  # Milestone 1 — Compiled literature review PDF
-├── Machine_Learning_Project_Presentation.pptx    # Milestone 1 — Presentation slides
-├── Machine_Learning_Project_Presentation.pdf     # Milestone 1 — Presentation slides
-├── Team3_Milestone2_ED_WaitTime.ipynb            # Milestone 2 — Data wrangling & EDA notebook
-└── team3_ed_waittime_cleaned.csv                 # Milestone 2 — Cleaned ML-ready dataset
-```
+**Milestone 1 — Literature Review**
+- `Team_3_Literature_Review.pdf` — Compiled SLR PDF
+- `Literature_Review_ED_WaitTime.xlsx` — Synthesis of all 17 reviewed articles
+- `Machine Learning Project Presentation.pptx` — Slides
+- `Machine Learning Project Presentation-2.pdf` — Slides (PDF)
+
+**Milestone 2 — Data Wrangling & EDA**
+- `Team3_Milestone2_ED_WaitTime.ipynb` — Notebook
+- `Team3_Milestone2.pdf` — Notebook PDF
+- `Team3_Milestone2.pptx` — Slides
+- `team3_ed_waittime_cleaned.csv` — Cleaned dataset (9,216 visits, 26 features)
+
+**Milestone 3 — Final ML Pipeline**
+- `Team3_Milestone3_ED_WaitTime.ipynb` — Final ML notebook (Linear, Ridge, Random Forest, XGBoost, LightGBM + SHAP + ESI + fairness)
+- `Team3_Milestone3_ED_WaitTime.pdf` — PDF of executed notebook
+
+**Final Paper**
+- `main.tex` — IEEE LaTeX source
+- `Team3_Final_Paper.pdf` — Compiled paper (10 pages)
+- `Team3_Draft_Paper.pdf` — Earlier draft (kept for record)
 
 ---
 
-## Milestone 1 — Systematic Literature Review 
+## Research Questions
 
-**Files:** `main.tex`, `Team_3_Literature_Review.pdf`, `Machine_Learning_Project_Presentation.pdf`
+The project is structured around two research questions, each chosen to surface a different facet of model trustworthiness:
 
-### Overview
-A PRISMA-style systematic literature review analyzing 12 peer-reviewed articles (2022–2025) on ML-based ED wait time and length-of-stay prediction, sourced from IEEE Xplore, PubMed, ACM Digital Library, Springer, Nature, and JAMA Network Open.
+- **RQ1 (Predictive accuracy and generalizability across triage levels).** Can supervised regression models trained on routinely collected ED triage data predict patient LOS in minutes with materially lower error than naive baselines, and does that accuracy generalize across all five ESI triage levels, or is it driven by a single dominant sub-population?
 
-### Key Findings
-- Gradient boosting ensemble methods (XGBoost, LightGBM, Random Forest) consistently outperform traditional clinical scoring systems across all reviewed studies
-- The MIMIC-IV-ED public dataset has emerged as the community reproducibility benchmark, appearing in 3 of 12 reviewed studies
-- **Critical gaps identified:** No single study combines continuous regression + SHAP interpretability + ESI-level segmentation + demographic fairness on a public dataset
-
-### Technical Specifications
-- **Template:** IEEE Conference Format (`IEEEtran`)
-- **Source File:** `main.tex`
-- **Language:** LaTeX
-
-### Steps to Compile Locally
-
-Ensure you have a LaTeX distribution installed (e.g., MiKTeX, TeX Live, or MacTeX), then run:
-
-```bash
-pdflatex main.tex
-bibtex main
-pdflatex main.tex
-pdflatex main.tex
-```
-
-The resulting file will be `main.pdf`.
+- **RQ2 (Explainability, interpretability, and demographic fairness).** Which features actually drive the model's LOS predictions according to SHAP attribution, do those drivers align with clinical intuition and prior interpretable-ML studies, and does the resulting model produce equitable error across subgroups defined by race/ethnicity, gender, and age?
 
 ---
 
-## Milestone 2 — Data Collection, Wrangling & Visualization 
+## Key Results
 
-**Notebook:** `Team3_Milestone2_ED_WaitTime.ipynb`
-**Cleaned Dataset:** `team3_ed_waittime_cleaned.csv`
+| Metric | Value |
+|---|---|
+| Best model (Test MAE) | **Ridge Regression — 89.09 min** |
+| Random Forest Test MAE | 91.03 min |
+| XGBoost Test MAE | 93.80 min |
+| LightGBM Test MAE | 93.42 min |
+| Naive baseline (predict mean) | 98.71 min |
+| Best model R² | 0.141 |
+| Top SHAP feature | `acuity` (mean &#124;SHAP&#124; = 46.07, ~6.4× the next feature) |
+| ESI-stratified MAE range | 36.96 (ESI 5) — 130.28 (ESI 2) |
+| Race/ethnicity MAE gap | 15.26 minutes |
+| Gender MAE gap | 1.03 minutes |
+| Age group MAE gap | 11.50 minutes |
+
+A notable counter-finding from our experiments: on this moderately sized dataset (~9,000 visits), regularized linear regression matched or slightly outperformed the gradient-boosted models that dominate the recent ED-ML literature. We discuss this honestly in the paper as a dataset-size and signal-density effect rather than tuning around it.
+
+---
+
+## Milestone 1 — Systematic Literature Review
+
+**Files:** `main.tex`, `Team_3_Literature_Review.pdf`, `Literature_Review_ED_WaitTime.xlsx`, `Machine Learning Project Presentation.pptx`
+
+A PRISMA-style review analyzing 17 peer-reviewed articles (12 directly on ED ML + 5 methodological foundations: Morley 2018 on overcrowding, Gilboy 2012 ESI Implementation Handbook, Breiman 2001 Random Forests, Chen & Guestrin 2016 XGBoost, Ke et al. 2017 LightGBM). The synthesis spreadsheet groups every article by 13 fields (paper title, authors, year, source, research question, methodology, results, strengths, limitations, relevance to our project, IEEE citation, etc.) and is structured as the input to the literature review section of the final paper.
+
+### Identified Research Gaps
+
+Five gaps are recurrent across the twelve directly comparable studies:
+
+1. Continuous-regression formulation is rare (10/12 studies use binary classification)
+2. Triage-level segmentation across all five ESI levels is absent
+3. SHAP-based interpretability is uneven (only 4/12 apply it)
+4. Reproducibility is limited (9/12 use proprietary single-center data)
+5. Fairness audits are scarce (only 2/12, both restricted to classification)
+
+Our work targets all five gaps simultaneously on a single publicly-released dataset.
+
+---
+
+## Milestone 2 — Data Collection, Wrangling & Visualization
+
+**Files:** `Team3_Milestone2_ED_WaitTime.ipynb`, `Team3_Milestone2.pdf`, `team3_ed_waittime_cleaned.csv`
 
 ### Dataset
-| Field | Detail |
-|-------|--------|
-| **Name** | Hospital Emergency Room Visits Dataset |
-| **Provider** | Kaggle — drnimishadavis |
-| **URL** | https://www.kaggle.com/datasets/drnimishadavis/hospital-emergency-room-dataset |
-| **Access date** | March 2026 |
-| **License** | CC0: Public Domain — no credentialing required |
-| **Size** | 9,216 ED visits |
-| **Target variable** | `ed_los_minutes` — continuous ED length-of-stay in minutes |
 
-### How to Run the Notebook
-1. Open `Team3_Milestone2_ED_WaitTime.ipynb` in [Google Colab](https://colab.research.google.com/)
-2. Click **Runtime → Run all**
-3. The dataset is generated automatically — no external files needed
-4. The cleaned CSV `team3_ed_waittime_cleaned.csv` is exported and downloaded automatically
+| Field | Value |
+|-------|-------|
+| Name | Hospital Emergency Room Visits Dataset |
+| Provider | Kaggle — drnimishadavis |
+| URL | https://www.kaggle.com/datasets/drnimishadavis/hospital-emergency-room-dataset |
+| Access date | March 2026 |
+| License | CC0 — Public Domain |
+| Records | 9,216 ED visits |
+| Raw features | 17 |
+| Final features (after engineering) | 26 |
+| Target variable | `ed_los_minutes` (continuous, in minutes) |
 
-### What the Notebook Covers
+### Preprocessing Highlights
 
-**Part A — Data Acquisition & Description**
-- Dataset source documentation (URL, license, access date)
-- Full data dictionary (17 features with name, type, description, example values)
-- Relevance statement connecting dataset to literature review findings
-
-**Part B — Data Wrangling & Preprocessing**
-- Missing value analysis with completeness visualization and justified imputation
-- Data type conversion (label encoding, ordinal casting)
-- Outlier detection using IQR method and Z-score method with clinical bounds winsorization
-- Feature engineering: `shock_index`, `pulse_pressure`, `arrival_shift`, `is_weekend`, `age_group`
-- StandardScaler normalization with written justification
-- Before/after wrangling summary comparison table
-
-**Part C — Exploratory Data Analysis & Visualization**
-- 12 publication-quality figures with 2–4 sentence interpretations each
-- Distribution plots for ED LOS, vital signs, and engineered features (Figures 3–5)
-- Pearson correlation heatmap (Figure 6)
-- Categorical analyses: ESI acuity levels, disposition, arrival transport mode (Figures 7–8)
-- Scatter plots of key features vs. target variable (Figure 9)
-- Temporal trend analysis by arrival hour and shift (Figures 10–11)
-- Fairness preview: LOS by gender and age group (Figure 12)
+- Median imputation for vital signs (≤12% missingness); mode imputation for sparse categoricals
+- Clinical reference bounds enforced (HR 30–250 bpm, SBP 60–280 mmHg, LOS 5–4,320 min)
+- Five engineered features: `shock_index` (HR/SBP), `pulse_pressure` (SBP−DBP), `arrival_shift`, `is_weekend`, `age_group`
+- Label encoding for categoricals; StandardScaler normalization on all 19 numeric model features
 
 ---
 
-## Milestone 3 — Predictive Modeling 🔄 (Upcoming)
+## Milestone 3 — Final ML Pipeline
 
-**Planned models:** XGBoost, Random Forest, Gradient Boosting
-**Evaluation metrics:** MAE, RMSE, R²
-**Additional analyses:**
-- SHAP-based feature importance (patient-level and population-level)
-- ESI triage-level subgroup performance analysis
-- Demographic fairness assessment (race, gender, age group)
+**Files:** `Team3_Milestone3_ED_WaitTime.ipynb`, `Team3_Milestone3_ED_WaitTime.pdf`
+
+The Milestone 3 notebook is the final ML pipeline that produces every numerical result in `Team3_Final_Paper.pdf`. The notebook is organized into clearly headed sections, uses modular functions in every code cell, and includes a `main()` function that runs the full pipeline end-to-end.
+
+### Notebook Structure
+
+1. **Setup** — imports, constants, reproducibility seed
+2. **Data Loading** — pulls the cleaned CSV directly from this GitHub repo (no upload needed)
+3. **Feature Set** — 19 standardized regression features grouped by clinical role
+4. **Modeling** — trains and benchmarks five regressors (Linear, Ridge, Random Forest, XGBoost, LightGBM) with 80/20 holdout + 5-fold CV
+5. **Interpretability** — SHAP TreeExplainer on LightGBM with global feature ranking
+6. **Stratified Evaluation** — Ridge refit within each of the five ESI levels
+7. **Fairness Audit** — MAE and RMSE disaggregated across race/ethnicity, gender, and age group
+8. **`main()`** — single function that runs everything end-to-end and prints all four result tables
+9. **Summary and Key Takeaways** — interpretation and counter-findings vs. literature
+
+### How to Run
+
+**Option A — Open directly in Google Colab (recommended):**
+
+[Click here to open in Colab](https://colab.research.google.com/github/Yasmin-maker1/Emergency-Department-Wait-Time-Prediction-Using-Machine-Learning/blob/main/Team3_Milestone3_ED_WaitTime.ipynb)
+
+Then click `Runtime → Run all`. The notebook pulls the cleaned CSV directly from this repository — no manual upload required.
+
+**Option B — Local Jupyter:**
+
+    git clone https://github.com/Yasmin-maker1/Emergency-Department-Wait-Time-Prediction-Using-Machine-Learning.git
+    cd Emergency-Department-Wait-Time-Prediction-Using-Machine-Learning
+    pip install xgboost lightgbm shap scikit-learn pandas matplotlib seaborn
+    jupyter notebook Team3_Milestone3_ED_WaitTime.ipynb
+
+Total runtime: approximately 2–3 minutes (the 5-model benchmark with cross-validation is the slowest step).
 
 ---
 
-## Research Question
+## Final Paper
 
-> How can supervised machine learning algorithms trained on routinely collected ED triage data accurately predict patient wait times, and what methodological approaches produce the most clinically interpretable and generalizable models?
+**File:** `Team3_Final_Paper.pdf` (10 pages, IEEE conference format)
+
+The paper consolidates the literature review, methodology, results, discussion, and conclusion. All numerical tables are collected in the Appendix and structured as synthesis tables grouped by theme/method/clinical role. The LaTeX source (`main.tex`) is included for reproducibility.
+
+### Compile Locally
+
+Requires a LaTeX distribution (TeX Live, MiKTeX, or MacTeX) with `IEEEtran.cls` available:
+
+    pdflatex main.tex
+    pdflatex main.tex
 
 ---
 
 ## References
 
-1. Porto, B. M. (2024). Improving triage performance in emergency departments using machine learning and natural language processing: A systematic review. *BMC Emergency Medicine, 24*(1), 219. https://doi.org/10.1186/s12873-024-01135-2
+The final paper cites 24 references (12 directly comparable ED-ML studies + 12 supporting methodology and fairness foundations). The full reference list is in the paper's bibliography section. Highlights:
 
-2. Predicting inpatient admissions from emergency department triage using machine learning: A systematic review. (2025). *JACEP Open*. https://doi.org/10.1016/j.acepjo.2025.100000
+- Wu et al. (2025) — most directly comparable continuous-regression study (LightGBM, 187k records)
+- Wang et al. (2025) — fairness-focused interpretable XGBoost on prolonged ED wait time
+- Ricciardi et al. (2024) — large-scale (~500k records) prolonged-LOS classification
+- Lett et al. (2025) — intersectional debiasing for ED admission prediction
+- Lundberg & Lee (2017) — SHAP foundation
+- Chen & Guestrin (2016) — XGBoost; Ke et al. (2017) — LightGBM; Breiman (2001) — Random Forests
 
-3. Wang, et al. (2025). Evaluating fairness of machine learning prediction of prolonged wait times in emergency department with interpretable eXtreme gradient boosting. *PLOS Digital Health, 4*(3). https://doi.org/10.1371/journal.pdig.0000751
-
-4. Xie, F., et al. (2022). Benchmarking emergency department prediction models with machine learning and public electronic health records. *Scientific Data, 9*, 658. https://doi.org/10.1038/s41597-022-01782-9
-
-5. Ricciardi, C., et al. (2024). Evaluation of different machine learning algorithms for predicting the length of stay in the emergency departments: A single-centre study. *Frontiers in Digital Health, 5*, 1323849. https://doi.org/10.3389/fdgth.2023.1323849
-
-6. Seo, H., Ahn, I., Gwon, H., et al. (2024). Prediction of hospitalization and waiting time within 24 hours of emergency department patients with unstructured text data. *Health Care Management Science, 27*, 114–129. https://doi.org/10.1007/s10729-023-09660-5
-
-7. Wang, H., Sambamoorthi, N., Sandlin, D., & Sambamoorthi, U. (2025). Interpretable machine learning models for prolonged emergency department wait time prediction. *BMC Health Services Research, 25*, 403. https://doi.org/10.1186/s12913-025-12535-w
-
-8. Sulaiman, W. A., et al. (2025). Leveraging machine learning and rule extraction for enhanced transparency in emergency department length of stay prediction. *Frontiers in Digital Health, 6*, 1498939. https://doi.org/10.3389/fdgth.2024.1498939
-
-9. Wu, W., Li, M., Jiang, H., et al. (2025). Development of an emergency department length-of-stay prediction model based on machine learning. *World Journal of Emergency Medicine, 16*(3), 220–224. https://doi.org/10.5847/wjem.j.1920-8642.2025.048
-
-10. Vural, O., et al. (2025). An artificial intelligence-based framework for predicting emergency department overcrowding: Development and evaluation study. *JMIR Medical Informatics, 13*, e73960. https://doi.org/10.2196/73960
-
-11. Lett, E., Shahbandegan, S., Barak-Corren, Y., Fine, A. M., & La Cava, W. G. (2025). Intersectional and marginal debiasing in prediction models for emergency admissions. *JAMA Network Open, 8*(5), e2512947. https://doi.org/10.1001/jamanetworkopen.2025.12947
-
-12. Sun, L., Agarwal, A., Kornblith, A., Yu, B., & Xiong, C. (2024). ED-Copilot: Reduce emergency department wait time with language model diagnostic assistance. In *Proceedings of the 41st International Conference on Machine Learning* (Vol. 235, pp. 46942–46956). PMLR. https://proceedings.mlr.press/v235/sun24a.html
+Full bibliographic detail is provided in `Team3_Final_Paper.pdf` and in the consolidated `Literature_Review_ED_WaitTime.xlsx`.
 
 ---
 
 ## Project Context
 
-This work was conducted as part of the **CSC7090 Data Science and Machine Learning** course project (Team 3) at Georgia Southern University, 2026.
+This work was conducted as part of the **CSCI-7090 Data Science and Machine Learning** course project (Team 3) at Georgia Southern University, Spring 2026.
