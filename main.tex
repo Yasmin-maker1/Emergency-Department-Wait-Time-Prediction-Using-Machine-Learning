@@ -1,3 +1,8 @@
+%==============================================================================
+% Final Paper — Emergency Department Wait Time Prediction Using Machine Learning
+% IEEE Conference Format
+% Course: CSCI-7090 — Data Science and Machine Learning, Georgia Southern Univ.
+%==============================================================================
 \documentclass[conference]{IEEEtran}
 \IEEEoverridecommandlockouts
 
@@ -9,6 +14,8 @@
 \usepackage{xcolor}
 \usepackage{booktabs}
 \usepackage{array}
+\usepackage{multirow}
+\usepackage{float}
 \usepackage{hyperref}
 \usepackage{url}
 
@@ -38,767 +45,1064 @@ yo00553@georgiasouthern.edu}
 
 \maketitle
 
+%==============================================================================
 \begin{abstract}
-Emergency department (ED) overcrowding is a global healthcare crisis associated with
-increased patient mortality, reduced care quality, and significant operational
-inefficiencies. Accurate prediction of patient wait times at the point of triage can
-empower clinical staff to proactively allocate resources and improve patient
-communication. This paper presents our systematic literature review (SLR) identifying
-and synthesizing twelve peer-reviewed research articles (2022--2025) on machine
-learning approaches for ED wait time and length-of-stay prediction, followed by our
-data wrangling, exploratory data analysis (EDA), and machine learning pipeline on the
-Hospital Emergency Room Visits dataset (Kaggle, CC0 license), structured to mirror the
-MIMIC-IV-ED benchmark. Our dataset comprises 9,216 ED visits with 17 raw features
-expanded to 26 engineered features after preprocessing. The target variable
-\texttt{ed\_los\_minutes} has a mean of 189.8 minutes, a median of 153.7 minutes, and
-a standard deviation of 141.7 minutes. ESI acuity level is the strongest predictor
-($r = -0.38$), with mean LOS ranging from 315.7 minutes (ESI~1) to 91.4 minutes
-(ESI~5). Our review reveals that gradient boosting ensemble methods (XGBoost, LightGBM,
-Random Forest) consistently achieve the strongest predictive performance. Key gaps
-identified include the near-universal use of binary classification rather than
-continuous wait time regression, limited triage-level segmentation, incomplete
-SHAP-based interpretability, and insufficient fairness analysis. Our project directly
-addresses these gaps through regression-based ML with SHAP explainability,
-triage-stratified analysis, and demographic fairness assessment.
+Long, unpredictable waits in the Emergency Department (ED) damage patient
+outcomes, raise clinical risk, and degrade hospital-wide flow, yet the triage
+tools used today rank urgency without telling anyone how long care will
+actually take. We address this transparency gap by building and comparing five
+regression models---Linear Regression, Ridge, Random Forest, XGBoost, and
+LightGBM---that estimate ED length of stay (LOS) in minutes from triage
+features alone, using a publicly available CC0 dataset of 9{,}216 ED visits
+expanded from 17 raw fields to 26 engineered features. Beyond the standard
+overall-accuracy report, we audit the model along three axes that the
+literature usually treats in isolation: per-Emergency-Severity-Index (ESI)
+performance across all five acuity levels, SHAP-based feature attribution, and
+fairness across race/ethnicity, gender, and age group. On a held-out 20\%
+test set the regularized linear baseline gave the best aggregate error
+(MAE 89.1~min, R$^2$~0.141), narrowly ahead of Random Forest (MAE 91.0) and
+ahead of XGBoost (93.8) and LightGBM (93.4); SHAP confirmed that the ESI
+acuity score alone carries roughly six times the explanatory weight of any
+other feature; ESI-stratified evaluation revealed a near fourfold MAE gap
+between Level~5 (37 min) and Level~2 (130 min) patients that the pooled metric
+hides; and the fairness audit surfaced a 15.3-minute MAE gap across
+race/ethnicity groups and an 11.5-minute gap across age groups, with only a
+1.0-minute gap between genders. The work is intended for ED operations leads
+who need defensible patient-flow estimates, clinicians who must communicate
+realistic timing at triage, equity researchers auditing ML deployments in
+healthcare, and patients who deserve a transparent answer to "how long will I
+wait?".
 \end{abstract}
 
 \begin{IEEEkeywords}
-emergency department, wait time prediction, machine learning, triage, XGBoost,
-LightGBM, SHAP, length of stay, patient flow, algorithmic fairness, overcrowding, EDA
+emergency department, wait time prediction, length of stay, machine learning,
+regression, triage, ESI, XGBoost, LightGBM, SHAP, algorithmic fairness
 \end{IEEEkeywords}
 
-% =============================================================
+%==============================================================================
 \section{Introduction}
-% =============================================================
+%==============================================================================
 
 \subsection{Background and Motivation}
-Emergency departments serve as the primary point of entry for acute, unscheduled
-healthcare across the globe. Rising patient volumes, resource constraints, and the
-unpredictable nature of emergency presentations have made ED overcrowding a recognized
-public health crisis. Prolonged wait times---defined as the interval between patient
-arrival and physician evaluation---are directly associated with increased in-hospital
-mortality, patient dissatisfaction, and a higher rate of patients leaving without being
-seen (LWBS).
+The Emergency Department (ED) is the open door of the modern hospital: it is
+where unscheduled, time-sensitive, and clinically heterogeneous patients all
+arrive on the same shift and compete for the same finite pool of beds,
+nurses, and physicians. Across the United States, Europe, and much of the
+Asia-Pacific region, ED visit volumes have outpaced hospital capacity for
+more than a decade, and the resulting overcrowding is now classified as a
+genuine public-health risk rather than an operational nuisance~\cite{morley2018,
+derlet2002}. The downstream effects are well documented. Patients who wait
+too long are more likely to suffer adverse events while they wait, more
+likely to leave without being seen, and statistically more likely to die in
+hospital after admission~\cite{bernstein2009}. From the staff side, sustained
+overcrowding drives burnout, increases handoff errors, and pushes ambulance
+diversion, which spreads the bottleneck to the surrounding emergency medical
+system.
 
-Despite the severity of this problem, most EDs continue to rely on manual triage
-scoring systems such as the Emergency Severity Index (ESI) and the Manchester Triage
-Scale (MTS) to prioritize care. While these systems effectively rank urgency, they do
-not provide quantitative estimates of how long a patient will wait. This gap between
-urgency classification and wait time transparency is precisely where machine learning
-(ML) can make a meaningful clinical contribution.
+A second motivating thread is operational. Length of stay in the ED has
+become one of the most-watched performance indicators in emergency medicine
+because it is a single number that condenses everything happening to a
+patient between triage and disposition: how long the workup took, whether
+the consult arrived, whether an inpatient bed was available, whether the lab
+was busy~\cite{ricciardi2024}. When ED LOS becomes unpredictable, a chain of
+hospital-wide planning processes degrades with it---bed assignment, transport
+scheduling, nurse staffing, even meal delivery. A predictive model that
+turns LOS from a guess into a number is therefore valuable not only at the
+bedside but at the operations desk.
 
-\subsection{Problem Definition}
-This work is guided by the following central research question: \textit{How can
-supervised machine learning algorithms trained on routinely collected ED triage data
-accurately predict patient wait times, and what methodological approaches produce the
-most clinically interpretable and generalizable models?}
+The third thread is the gap between urgency and timing. The triage scoring
+systems EDs already use---primarily the Emergency Severity
+Index (ESI) in the United States and the Manchester Triage Scale (MTS) in
+Europe~\cite{gilboy2012}---answer the question "who do we see next?" but not
+"how long until I am seen?" or "how long until I go home?". These two
+questions are clinically and operationally distinct. Machine Learning (ML)
+models trained on the same routinely collected triage data---vital signs,
+demographics, arrival mode, ESI level---can fill the second question,
+producing a continuous patient-level estimate that augments rather than
+replaces the existing triage scale. A growing body of recent
+work~\cite{wang2025fair, wu2025, wang2025interp} has begun to populate this
+space, but most published efforts still cast the problem as a binary
+"prolonged vs. not prolonged" classification, train on proprietary
+single-center data, or report a single pooled accuracy metric that hides
+performance differences between patient subgroups.
 
-\subsection{Objectives and Novel Contributions}
-The specific objectives of this project are:
-\begin{enumerate}
-    \item Identify and synthesize the most relevant ML research on ED wait time and
-    length-of-stay prediction published between 2022 and 2025.
-    \item Evaluate the methodological quality, datasets, and model types used across
-    twelve studies.
-    \item Identify recurring research gaps regarding interpretability, triage-level
-    segmentation, continuous regression, and fairness.
-    \item Apply regression-based gradient boosting and random forest models to the ED
-    dataset, incorporating SHAP-based feature importance~\cite{shap}, and segment
-    predictions by ESI triage level.
-\end{enumerate}
+\subsection{Research Questions}
+The problem we address is the absence, in current practice, of a transparent
+patient-level estimate of how long an ED visit will take. The estimate must be
+computable at the moment of triage, must use only data already collected
+during the standard triage interaction, must come with an explanation that
+clinical staff can interpret, and must behave consistently across patient
+subgroups---a model that is twice as wrong for one demographic group as for
+another is not deployable in a clinical setting regardless of its average
+accuracy. We split the problem into two research questions, each chosen to
+target a different facet of trustworthiness:
 
-\subsection{Scope}
-This work covers twelve peer-reviewed articles from reputable sources, all published
-between 2022 and 2025, and applies the derived insights to a machine learning pipeline.
-Ten of the twelve articles were published in 2024 or 2025, reflecting the rapidly
-accelerating pace of research in this domain.
-
-% =============================================================
-\section{Literature Review Methodology}
-% =============================================================
-
-\subsection{Search Strategy}
-The literature search was conducted systematically across: IEEE Xplore, ACM Digital
-Library, PubMed/MEDLINE, Springer Link, ScienceDirect (Elsevier), PLOS Digital Health,
-JAMA Network Open, and Nature/Scientific Data.
-
-\subsection{Keywords Used}
-The following keyword combinations were used:
 \begin{itemize}
-    \item ``Emergency department wait time prediction machine learning''
-    \item ``ED length of stay ML systematic review''
-    \item ``MIMIC-IV-ED machine learning prediction''
-    \item ``Triage machine learning emergency department''
-    \item ``XGBoost random forest hospital wait time''
-    \item ``Interpretable ML healthcare SHAP emergency''
-    \item ``ED overcrowding prediction deep learning''
-    \item ``Algorithmic fairness emergency department ML''
+    \item \textbf{RQ1 (Predictive accuracy and generalizability across triage
+    levels).} Can supervised regression models trained on routinely collected
+    ED triage data predict patient LOS in minutes with materially lower error
+    than naive baselines, and does that accuracy generalize across all five
+    ESI triage levels, or is it driven by a single dominant sub-population?
+    \item \textbf{RQ2 (Explainability, interpretability, and demographic
+    fairness).} Which features actually drive the model's LOS predictions
+    according to SHAP attribution, do those drivers align with clinical
+    intuition and with the patterns reported in prior interpretable-ML
+    studies, and does the resulting model produce equitable error across
+    subgroups defined by race/ethnicity, gender, and age?
 \end{itemize}
 
-\subsection{Inclusion and Exclusion Criteria}
-Table~\ref{tab:criteria} summarizes the inclusion and exclusion criteria.
+\subsection{Objectives}
+The research questions translate to four concrete project objectives:
+\begin{enumerate}
+    \item Train and benchmark five regression models---Linear Regression,
+    Ridge, Random Forest, XGBoost, and LightGBM---on an 80/20 hold-out split
+    with 5-fold cross-validation on the training fold, reporting MAE, RMSE,
+    and R$^2$.
+    \item Refit the best model separately within each of the five ESI levels
+    and compare per-level error, exposing the subgroup variation that pooled
+    metrics hide.
+    \item Apply SHAP TreeExplainer to the best gradient-boosted model and
+    report a global feature ranking, both for clinical sanity-checking and
+    for direct comparison with previously published SHAP rankings.
+    \item Disaggregate the test-set MAE and RMSE across race/ethnicity,
+    gender, and age group, and quantify the worst-case subgroup gap.
+\end{enumerate}
 
-\begin{table}[htbp]
-\centering
-\caption{Inclusion and Exclusion Criteria}
-\label{tab:criteria}
-\renewcommand{\arraystretch}{1.2}
-\begin{tabular}{p{0.44\linewidth}p{0.44\linewidth}}
-\toprule
-\textbf{Inclusion Criteria} & \textbf{Exclusion Criteria} \\
-\midrule
-Published 2022--2025           & Published before 2022 \\
-English full-text available    & Abstracts without full text \\
-Peer-reviewed / top-tier venue & Non-peer-reviewed sources \\
-Supervised ML on ED prediction & ICU/inpatient-only studies \\
-Quantitative metrics reported  & No model evaluation \\
-ED wait time, LOS, or triage   & Pure administrative studies \\
-\bottomrule
-\end{tabular}
-\end{table}
+\subsection{Contributions}
+Against the existing literature, this paper offers four contributions:
+\begin{enumerate}
+    \item \textbf{A combined methodology.} Our pipeline simultaneously
+    delivers continuous LOS regression, ESI-stratified evaluation, SHAP
+    interpretability, and demographic fairness auditing on a single
+    publicly accessible dataset. None of the twelve studies surveyed in
+    Section~\ref{sec:lit} delivers all four together.
+    \item \textbf{An empirical counter-finding.} On a moderately sized
+    dataset, regularized linear regression matches or slightly beats the
+    gradient-boosted models, in tension with the prevailing claim that
+    XGBoost and LightGBM dominate ED prediction across the
+    board~\cite{wu2025, ricciardi2024}. We argue this is a dataset-size
+    effect worth reporting honestly rather than tuning around.
+    \item \textbf{An equity finding.} A non-trivial 15.3-minute MAE gap
+    across race/ethnicity groups exists in the model's errors and is
+    invisible if only a single pooled metric is reported. This argues for
+    subgroup auditing as a default, not an optional extension, in ED ML.
+    \item \textbf{A reproducibility artifact.} A cleaned 26-feature dataset,
+    a documented analysis notebook, and saved per-model and per-subgroup
+    metrics are released alongside this paper so that other teams can
+    replicate, criticize, or extend the experiment.
+\end{enumerate}
 
-% =============================================================
-\section{Literature Review}
-% =============================================================
+\subsection{Paper Roadmap}
+Section~\ref{sec:lit} reviews twelve recent peer-reviewed studies on ML for
+ED triage and patient-flow prediction, ending with an explicit list of
+recurring gaps and a positioning paragraph that locates our contribution
+inside the literature. Section~\ref{sec:methods} covers the dataset, a
+condensed preprocessing pipeline, the five candidate models, and the
+evaluation protocol. Section~\ref{sec:results} reports results in four
+layers---overall, ESI-stratified, SHAP-based, and fairness-disaggregated---
+and compares each layer against the closest prior-work benchmark.
+Section~\ref{sec:discussion} interprets the results, lists strengths and
+limitations honestly, and pulls out practical implications.
+Section~\ref{sec:conclusion} concludes and proposes future work. All
+numerical tables are collected in the Appendix and referenced inline by
+number throughout.
 
-\subsection{Thematic Overview}
-The twelve reviewed articles cluster around five major themes: (1) systematic reviews
-of ML for ED triage and patient flow, (2) empirical ML models for ED wait time and
-length-of-stay prediction, (3) benchmark datasets and interpretability frameworks,
-(4) algorithmic fairness and demographic equity, and (5) advanced AI paradigms
-including transformers, LLMs, and reinforcement learning.
-Table~\ref{tab:summary} provides a consolidated comparison of all twelve articles.
+%==============================================================================
+\section{Literature Review}\label{sec:lit}
+%==============================================================================
 
-\begin{table*}[htbp]
-\caption{Summary Comparison of All Reviewed Articles (N=12)}
+\subsection{Theoretical Background}
+Three research traditions converge on the ED prediction problem. The first
+is clinical triage, which since the late 1990s has been formalized through
+ordinal scales such as ESI~\cite{gilboy2012} that translate vital signs and
+chief complaint into a 1--5 priority. The second is the rise of
+gradient-boosted decision trees as the default tabular learner in
+healthcare~\cite{chen2016xgboost, ke2017lightgbm, breiman2001}; on most
+clinical structured-data problems they sit at the Pareto front of accuracy
+and training cost, which is why they dominate the recent ED literature. The
+third is post-hoc explainability through SHAP~\cite{shap, lundberg2018},
+which lets a tree ensemble be interrogated at the feature level without
+sacrificing predictive accuracy. The standard recipe in the recent ED
+literature is to combine all three: feed triage features into a boosted
+ensemble, evaluate on AUC for classification or on MAE/RMSE/R$^2$ for
+regression~\cite{wu2025, vural2025}, and explain the result with SHAP. Our
+study follows this recipe and tests where it breaks.
+
+\subsection{Synthesis of the Twelve Reviewed Studies}
+We organize the twelve studies into five themes: systematic reviews,
+empirical wait-time and LOS models, benchmark and interpretability work,
+fairness and overcrowding studies, and advanced AI paradigms. The full
+synthesis appears as Table~\ref{tab:summary} in
+Appendix~\ref{app:tables}; the reading of the table that follows is the
+narrative the table is designed to support.
+
+\subsection{Systematic Reviews}
+Two systematic reviews anchor the field. Porto~\cite{porto2024} surveys ML
+and natural-language-processing approaches to ED triage in a 2024
+PRISMA-2020 review and concludes that learned models consistently outperform
+rule-based triage scales, while flagging the absence of continuous-wait-time
+regression and the limited use of explainability tools as the two largest
+unmet needs. The second 2025 systematic review~\cite{slr2025} surveys ML for
+predicting inpatient admission from ED triage and reports a tight AUC range
+of 0.81--0.93 across rigorous studies, with random forest and gradient
+boosting at the top of the leaderboard.
+
+\subsection{Empirical Wait-Time and LOS Models}
+Five empirical studies form the most directly comparable group to our work.
+Wang et al.~\cite{wang2025fair} train an interpretable XGBoost classifier on
+prolonged ($\geq$30 min) wait time in ESI-3 patients, achieving AUC $\approx$
+0.72 and documenting performance gaps across race/ethnicity and insurance
+type, but remain restricted to the binary target and a single ESI bucket.
+Ricciardi et al.~\cite{ricciardi2024} apply random forest, decision tree, and
+SVM to nearly half a million Italian ED admissions and reach AUC $\approx$
+0.80 for the binary prolonged-LOS target, validating that triage features
+alone carry useful signal. Seo et al.~\cite{seo2024} extend the feature space
+with NLP-processed chief-complaint text and find LightGBM the best of their
+suite. Wang, Sambamoorthi et al.~\cite{wang2025interp} compare five learners
+on the same prolonged-wait-time target as~\cite{wang2025fair} and confirm
+XGBoost/RF as the strongest. Wu et al.~\cite{wu2025} stand out as the
+clearest precedent for our setup: they treat ED LOS as a continuous
+regression target on 187{,}028 records, identify LightGBM as the strongest
+model, and surface "current emergency waiting time"---a real-time queue
+signal---as the dominant feature.
+
+\subsection{Benchmarks and Interpretability}
+Two studies build infrastructure rather than fit models on their own. Xie
+et al.~\cite{xie2022} release the MIMIC-IV-ED benchmark and a reference
+preprocessing pipeline for the wider research community, demonstrating that
+gradient boosting and random forest beat traditional clinical scoring
+systems. Sulaiman et al.~\cite{sulaiman2025} push the explainability
+frontier past SHAP by combining ensemble ML with TE2Rules rule extraction on
+ten minimal features, sketching a path toward clinician-readable
+"if-then" explanations.
+
+\subsection{Fairness, Overcrowding, and Advanced AI}
+The remaining three studies cover the wider context. Vural
+et al.~\cite{vural2025} target system-level overcrowding rather than
+individual-patient prediction, using time-series transformers (TSiTPlus,
+XCMPlus) on 6-hour and 24-hour occupancy and reporting MAE $\approx$ 4.19
+patients with R$^2$ $\approx$ 0.56. Lett et al.~\cite{lett2025} compare
+intersectional and marginal fairness debiasing for ED admission prediction
+on MIMIC-IV-ED; both methods preserve overall AUROC at 0.85, but the
+intersectional approach roughly doubles the calibration improvement (22.3\%
+vs.~11.3\% subgroup error reduction). Sun et al.~\cite{sun2024} introduce
+ED-Copilot, which pairs BioGPT with a reinforcement-learning agent to
+recommend lab orderings that minimize wait time and demonstrate a roughly
+50\% reduction in average laboratory wait time---the most ambitious AI
+paradigm in the review.
+
+\subsection{Identified Research Gaps}
+Reading Table~\ref{tab:summary} together with the per-study accounts above
+makes five gaps visible. \textit{Gap 1: continuous regression is rare}---ten
+of the twelve studies treat their target as a binary class; only Wu et
+al.~\cite{wu2025} and Seo et al.~\cite{seo2024} model wait time or LOS as a
+continuous variable in minutes. \textit{Gap 2: triage segmentation is
+absent}---no study reports performance broken down across all five ESI
+levels; subgroup analyses, when they exist, focus on ESI-3 alone.
+\textit{Gap 3: explainability is uneven}---only four of twelve studies apply
+SHAP, only one~\cite{sulaiman2025} explores rule-based alternatives, and
+seven publish no interpretability analysis at all. \textit{Gap 4:
+reproducibility is limited}---nine of twelve studies use proprietary
+single-center data, which prevents direct replication. \textit{Gap 5:
+fairness audits are scarce}---only two studies~\cite{wang2025fair, lett2025}
+formally audit subgroup performance, and both restrict their audit to
+classification rather than continuous regression.
+
+\subsection{Positioning of This Study}
+Our work is designed to attack all five gaps at once on a single
+publicly-released dataset. We model LOS as a continuous variable in minutes
+(addresses Gap 1), evaluate every model across all five ESI levels rather
+than collapsing to a binary cut (Gap 2), apply SHAP TreeExplainer to our
+best gradient-boosted model and publish the global ranking (Gap 3), use the
+CC0 Hospital Emergency Room Visits dataset and release a cleaned 26-feature
+derivative (Gap 4), and disaggregate test-set MAE and RMSE across
+race/ethnicity, gender, and age group (Gap 5). To our knowledge no prior ED
+study delivers all five.
+
+%==============================================================================
+\section{Methodology}\label{sec:methods}
+%==============================================================================
+
+\subsection{Dataset}
+The data come from the Hospital Emergency Room Visits dataset on Kaggle,
+released under a CC0 (public-domain) license, with a feature schema designed
+to mirror the openly published MIMIC-IV-ED benchmark~\cite{xie2022, mimic}.
+The raw file contains 9{,}216 ED visits and 17 fields covering structured
+triage data, vitals, demographics, arrival context, and disposition.
+Table~\ref{tab:dictionary} (Appendix) summarizes every raw field grouped by
+clinical role: identifier, demographics, arrival context, triage acuity,
+vital signs, and disposition. The target field is
+\texttt{ed\_los\_minutes}, the total minutes a patient spends in the
+department from arrival to physical departure. As Table~\ref{tab:target}
+(Appendix) shows, the empirical distribution of this variable is heavily
+right-skewed---a mean of 189.8 min sitting well above the median of 153.7
+min, and a long tail reaching 2{,}644.9 min for boarding cases---which is
+typical of ED stay-time data and motivates a non-Gaussian modeling
+treatment.
+
+\subsection{Data Cleaning and Preprocessing}
+Preprocessing was applied as a single sequential pipeline. Numeric vital
+signs with up to 12\% missingness were imputed by their median; the four
+categorical fields with sparse missing entries were imputed by their mode;
+clinical reference bounds (HR 30--250 bpm, SBP 60--280 mmHg, LOS
+5--4{,}320 min, etc.) were used to confirm no implausible values survived
+imputation; categorical features were label-encoded; five new features were
+engineered from existing ones (\textit{shock\_index} = HR/SBP,
+\textit{pulse\_pressure} = SBP$-$DBP, three-bucket \textit{arrival\_shift},
+binary \textit{is\_weekend}, four-bucket \textit{age\_group}); and finally
+all 19 numeric model features were standardized to zero mean and unit
+variance, in line with the convention adopted by Wu et al.~\cite{wu2025}
+and Wang et al.~\cite{wang2025fair}. Table~\ref{tab:wrangling} (Appendix)
+gives the row-by-row before/after summary, ending with 9{,}216 records,
+26 features, and zero remaining missing cells; Table~\ref{tab:missing}
+profiles the missingness as it appeared on entry to the pipeline.
+
+\subsection{Model Feature Set}
+After preprocessing, the regression input vector consists of 19 standardized
+features grouped by source: \textit{patient demographics} (age,
+gender\_encoded, race\_encoded, age\_group\_encoded), \textit{vital signs}
+(heartrate, sbp, dbp, temperature, o2sat, resprate), \textit{triage
+information} (acuity, pain\_score), \textit{engineered physiology}
+(shock\_index, pulse\_pressure), \textit{arrival context} (arrival\_hour,
+is\_weekend, arrival\_transport\_encoded, arrival\_shift\_encoded), and
+\textit{visit-level disposition} (was\_admitted). Pearson screening
+confirmed that only \texttt{acuity} has a non-trivial linear correlation
+with the target ($r=-0.38$); every other feature falls in $|r|\leq 0.02$,
+which is the empirical signature of a problem dominated by one strong driver
+plus weak nonlinear and interaction signal in the remainder.
+
+\subsection{Models and Why We Chose Them}
+We evaluated five regressors covering three families.
+\textit{Linear baselines}: Linear Regression and Ridge ($\alpha=1.0$); these
+establish a reference floor and check whether L2-regularization helps
+under the multicollinearity present between SBP, DBP, and pulse\_pressure.
+\textit{Tree baseline}: Random Forest with 200 trees, max depth 14, and
+minimum 4 samples per leaf, following the strong RF results reported
+by~\cite{ricciardi2024} and the bagging argument of~\cite{breiman2001}.
+\textit{Gradient boosting}: XGBoost~\cite{chen2016xgboost} with 400 trees,
+learning rate 0.05, max depth 6, and 0.85 subsample/colsample fractions; and
+LightGBM~\cite{ke2017lightgbm} with 500 trees, 31 leaves, learning rate
+0.05. The boosting hyperparameters were chosen by light manual tuning on
+the training fold to match the configurations most commonly reported in the
+ED ML literature~\cite{wu2025, seo2024, wang2025fair} so that any difference
+in our findings cannot be charged to underpowered baselines. All models use
+\texttt{random\_state=42}.
+
+\subsection{Evaluation Protocol}
+The 9{,}216 records were split 80/20 into a training set (7{,}372 records)
+and a held-out test set (1{,}844 records) using a fixed seed. We report
+three metrics: MAE (interpretable in clinical units---minutes of error),
+RMSE (which over-weights large errors and so penalizes the long-tail
+boarding cases), and R$^2$ (proportion of LOS variance explained). All three
+are reported both on the held-out test set and as a 5-fold cross-validation
+average on the training fold. For ESI-stratified evaluation, we re-split the
+data within each acuity level before refitting Ridge to keep training- and
+test-fold separation. For SHAP analysis we apply
+TreeExplainer~\cite{shap, lundberg2018} to the LightGBM model and report
+mean $|$SHAP$|$ per feature on the test set. For the fairness audit, we
+compute MAE and RMSE separately for each group of the
+race/ethnicity, gender, and age-group categorical variables on the same
+held-out test set. The full software stack is Python 3.11 with
+scikit-learn 1.8.0, XGBoost 3.2.0, LightGBM 4.6.0, and SHAP 0.51.0; results
+files and the analysis notebook are released with the paper.
+
+%==============================================================================
+\section{Results}\label{sec:results}
+%==============================================================================
+
+\subsection{Overall Model Performance}
+Table~\ref{tab:overall} (Appendix) reports test-set and 5-fold CV results
+for all five models in a single synthesis. Ridge Regression yielded the
+lowest test MAE at 89.09 min and the highest test R$^2$ at 0.141, edging
+out plain Linear Regression by less than 0.01 on every metric (the two
+collapse to nearly the same model when the regularization weight is small
+relative to the gradient of the loss surface). Random Forest came next at
+MAE 91.03; XGBoost and LightGBM trailed at 93.80 and 93.42. Cross-validation
+metrics tracked the held-out test ranking to within $\pm$1 MAE point for
+every model, ruling out overfitting as an explanation. As a sanity floor,
+the naive "predict the training-set mean" baseline produced a test MAE of
+98.71, so the weakest of our five models still recovers around 5 minutes of
+error reduction over guessing the average.
+
+\textit{Comparison with prior work.} Wu et al.~\cite{wu2025}, the most
+directly comparable continuous-regression study, achieve LightGBM R$^2$
+between roughly 0.40 and 0.55 on 187{,}028 records, with the bulk of their
+predictive lift coming from a real-time "current emergency waiting time"
+queue-depth feature that is unavailable in our static dataset.
+Ricciardi et al.~\cite{ricciardi2024} report AUC $\approx$ 0.80 on a binary
+prolonged-LOS target on roughly 500{,}000 records---a different metric on a
+different framing, but a useful upper anchor for what triage features alone
+can deliver. The most striking finding in our table, given the literature
+backdrop, is that on this dataset \emph{regularized linear regression
+matches the best non-linear model}. The straightforward explanation,
+consistent with the correlation profile of the features ($r=-0.38$ for
+acuity, $|r|\leq 0.02$ for everything else), is that this prediction problem
+contains one strong linear driver and very little exploitable interaction
+signal at the available sample size. Boosting needs interactions to pay for
+its capacity; on a dataset of 9{,}216 records with one dominant linear
+effect, regularized linear models can match it.
+
+\subsection{ESI-Stratified Performance}
+Refitting Ridge separately within each acuity level produced
+Table~\ref{tab:esi} (Appendix). Two patterns emerge that the pooled metric
+hides. First, MAE scales almost linearly with mean LOS by triage level:
+ESI-5 patients (mean LOS 91 min, lowest acuity) have MAE 36.96 min, while
+ESI-2 patients (mean LOS 265 min, second-highest acuity) have MAE 130.28
+min---a 3.5$\times$ ratio that the single pooled MAE of 89 min would never
+reveal. Second, every per-level R$^2$ value sits between $-0.16$ and $-0.01$,
+even though the pooled R$^2$ is 0.141. This is not a contradiction. The
+pooled R$^2$ benefits from the strong between-level variance driven by
+acuity itself; once that variance is removed by stratifying, the residual
+within-level signal in vital signs and demographics is too weak for the
+linear model to capture. The clinical implication is that a pooled-metric
+deployment would systematically over-promise accuracy for high-acuity
+patients and under-promise it for low-acuity patients. We did not find this
+pattern reported in any of the twelve reviewed studies.
+
+\subsection{SHAP Feature Importance}
+Table~\ref{tab:shap} (Appendix) reports global mean $|$SHAP$|$ values for
+the LightGBM model on the held-out test set, ranked from largest to
+smallest. The ESI \texttt{acuity} score dominates at 46.07---approximately
+6.4$\times$ the second feature. The next tier consists of physiology:
+\texttt{o2sat} (7.15), \texttt{dbp} (6.27), \texttt{temperature} (5.88),
+\texttt{age} (5.87), \texttt{pulse\_pressure} (5.85), \texttt{resprate}
+(5.20), \texttt{shock\_index} (5.07), \texttt{heartrate} (4.96),
+\texttt{sbp} (3.94). Demographics, arrival context, and visit-level
+disposition---features that a fairness-skeptical reader might worry the
+model leans on---occupy the bottom half of the ranking, with
+\texttt{age\_group\_encoded} dead last at 0.62.
+
+\textit{Comparison with prior work.} The dominance of the acuity score
+matches Wang et al.~\cite{wang2025fair}, whose XGBoost SHAP analysis put ESI
+level at the top of the list, and Wang, Sambamoorthi
+et al.~\cite{wang2025interp}, who placed ESI level and arrival hour as
+their top two. Our \texttt{arrival\_hour} ranks 13th rather than near the
+top, which we attribute to two differences: the prior studies' EDs had
+strong queue-depth dynamics that load onto arrival hour as a proxy, and our
+dataset has a more uniform arrival-hour distribution that flattens this
+proxy effect. The high SHAP rank of vital signs over administrative and
+demographic features matches the clinically intuitive story that
+physiological severity drives LOS more than identity does.
+
+\subsection{Demographic Fairness Audit}
+Tables \ref{tab:fair_race}, \ref{tab:fair_gender}, and \ref{tab:fair_age}
+(all in Appendix) report MAE and RMSE for the Ridge model disaggregated
+across race/ethnicity, gender, and age group, respectively. The headline
+numbers are a 15.26-minute MAE gap between the worst-served group
+(Black/African American, MAE 91.23) and the best-served group (OTHER, MAE
+75.97); a 1.03-minute MAE gap between female (88.61) and male (89.64)
+patients; and an 11.50-minute MAE gap between the worst-served age group
+(Pediatric, MAE 95.60) and the best-served (Middle Age, MAE 84.10). The
+smaller demographic groups---HISPANIC, ASIAN, OTHER---have lower errors than
+the two large groups (WHITE and Black), which most likely reflects
+narrower within-group LOS variance rather than a genuinely better model fit
+for those subgroups; we discuss this caveat in Section~\ref{sec:discussion}.
+
+\textit{Comparison with prior work.} Wang et al.~\cite{wang2025fair}
+report comparable relative AUC gaps across race and insurance in their
+classification setup; ours is the same phenomenon expressed in regression
+units. Lett et al.~\cite{lett2025} demonstrate a 22.3\% subgroup
+calibration-error reduction from intersectional debiasing on a similar ED
+prediction task, suggesting a concrete mitigation path our descriptive
+audit identifies but does not yet apply. The much smaller gender gap and
+the larger race/age gaps echo a well-documented pattern in the wider
+clinical-ML fairness literature~\cite{rajkomar2018, obermeyer2019} that
+binary gender is a less common source of disparity than race or age in
+standard structured-data models.
+
+%==============================================================================
+\section{Discussion}\label{sec:discussion}
+%==============================================================================
+
+\subsection{What the Results Mean}
+Three findings deserve to be foregrounded. First, the linear-vs-boosted
+ordering on this dataset is a counter-finding to the prevailing
+literature pattern that XGBoost and LightGBM dominate ED prediction. Read
+together with the SHAP result that one feature carries roughly half the
+total predictive signal, and with the very weak linear correlations of every
+other feature, the parsimonious explanation is that on a moderately sized
+dataset with one dominant linear driver and a weakly informative remainder,
+regularized linear regression has nothing to lose and boosting has too
+little interaction signal to gain. We expect the ordering to flip on much
+larger datasets or on datasets enriched with real-time queue-depth signals.
+Second, ESI stratification reveals that the single pooled metric overstates
+how well the model serves high-acuity patients and understates how well it
+serves low-acuity patients; reporting a single MAE without stratification
+is therefore quietly misleading for any clinical deployment. Third, the
+race/ethnicity MAE gap of 15.26 minutes is large enough to matter for
+patient communication---the difference between "tell me 90 minutes" and
+"tell me 105 minutes" is the difference between trust and distrust the next
+time the patient walks in.
+
+\subsection{Strengths}
+The study has four strengths worth naming. (1) The dataset is fully
+public under a permissive license, the random seed is fixed, and the
+cleaned CSV plus analysis notebook are released with the paper, so the
+experiment is reproducible end-to-end. (2) The pipeline simultaneously
+delivers continuous regression, ESI stratification, SHAP, and a fairness
+audit---a combination not present in any of the twelve reviewed studies.
+(3) We include simple regularized-linear baselines and report honestly
+that they win, against the publication-bias gradient toward boosting in
+this literature. (4) Every demographic subgroup with at least 50 test-set
+records is reported.
+
+\subsection{Limitations}
+We acknowledge five limitations. \textit{Sample size.} 9{,}216 visits is
+modest compared with the 187{,}028 records of Wu et al.~\cite{wu2025} or
+the $\sim$400{,}000 of MIMIC-IV-ED~\cite{xie2022}; both the linear-vs-
+boosted ordering and the per-subgroup error estimates carry meaningful
+uncertainty at our sample size. \textit{Single source.} The dataset comes
+from a single ED, so external validation on a different institution is
+required before the model can be claimed to generalize. \textit{No queue
+signal.} The static feature vector cannot include real-time crowding
+indicators (current census, mean wait of patients ahead in queue, board
+status); Wu et al.~\cite{wu2025} report that exactly this feature is the
+strongest predictor in their model, and its absence in our setup likely
+caps the achievable R$^2$. \textit{Limited explanatory power.} The pooled
+R$^2$ of 0.141 means 86\% of the variance in LOS is unexplained by triage
+features alone, motivating future incorporation of NLP on chief-complaint
+text~\cite{seo2024} and laboratory turnaround features. \textit{Descriptive
+fairness only.} We report subgroup gaps but do not yet apply the
+intersectional-debiasing correction of Lett et al.~\cite{lett2025}; that
+mitigation is left for follow-on work.
+
+\subsection{Practical Implications}
+For ED operations leads, these results suggest that a Ridge model deployed
+at triage on this kind of feature set can deliver a patient-level estimate
+accurate to roughly $\pm$90 minutes on average, with substantially better
+accuracy ($\pm$37 min) for the lowest-acuity patients and substantially
+worse accuracy ($\pm$130 min) for the second-highest acuity tier. Patient
+communication should respect this stratification: a confident "30 to 60
+minutes" is realistic for ESI-5 patients but not for ESI-2 patients, who
+should be told something like "two to six hours, depending on workup." For
+equity researchers, the 15-minute race-related MAE gap is a concrete and
+reproducible target for a debiasing intervention. For clinicians, the SHAP
+ranking is a useful sanity check: the model is leaning on physiological
+severity, not on demographics or administrative features.
+
+%==============================================================================
+\section{Conclusion and Future Work}\label{sec:conclusion}
+%==============================================================================
+
+We presented an end-to-end regression pipeline for predicting Emergency
+Department length of stay as a continuous variable, evaluated five models on
+9{,}216 ED visits with an 80/20 holdout and 5-fold cross-validation,
+stratified results across all five ESI levels, applied SHAP TreeExplainer
+to interpret the best gradient-boosted model, and audited demographic
+fairness across race/ethnicity, gender, and age group. Ridge Regression
+produced the lowest test MAE (89.09 min, R$^2$~$=0.141$), narrowly ahead of
+Random Forest and ahead of the two gradient-boosted models---a result that
+nuances the literature's general preference for XGBoost and LightGBM in this
+domain. SHAP confirmed that ESI acuity dominates the prediction signal. ESI
+stratification revealed an MAE gradient from 37 (ESI 5) to 130 (ESI 2)
+minutes that is invisible in pooled metrics. The fairness audit surfaced a
+15.26-minute MAE gap across race/ethnicity and an 11.50-minute gap across
+age groups, with a near-zero gap across genders.
+
+Three lines of follow-on work are most promising. First, incorporating
+NLP-processed chief-complaint text along the lines of Seo et
+al.~\cite{seo2024} should add semantic signal that the static-feature
+formulation cannot capture. Second, replicating the experiment on
+MIMIC-IV-ED~\cite{xie2022, mimic} and on a second institutional dataset
+would test external validity. Third, applying the intersectional
+debiasing of Lett et al.~\cite{lett2025} would translate the descriptive
+fairness gaps reported here into measurable mitigation outcomes. We also
+plan to layer rule extraction in the style of Sulaiman
+et al.~\cite{sulaiman2025} on top of SHAP to produce clinician-facing
+"if--then" explanations alongside the feature-attribution view.
+
+%==============================================================================
+\section*{Acknowledgments}
+%==============================================================================
+This work was conducted as part of the CSCI-7090 Data Science and Machine
+Learning course project, Team~3, Spring 2026, Georgia Southern University.
+We thank Prof.~Vijayalakshmi Ramasamy for guidance on framing and
+structure.
+
+%==============================================================================
+\begin{thebibliography}{00}
+
+\bibitem{porto2024}
+B. M. Porto, ``Improving triage performance in emergency departments using
+machine learning and natural language processing: a systematic review,''
+\textit{BMC Emerg. Med.}, vol. 24, no. 1, p. 219, 2024. [Online]. Available:
+\url{https://doi.org/10.1186/s12873-024-01135-2}
+
+\bibitem{slr2025}
+Multiple authors, ``Predicting inpatient admissions from emergency department
+triage using machine learning: a systematic review,'' \textit{JACEP Open},
+Elsevier, 2025. [Online]. Available:
+\url{https://www.sciencedirect.com/science/article/pii/S2949761225000045}
+
+\bibitem{wang2025fair}
+H. Wang et al., ``Evaluating fairness of machine learning prediction of
+prolonged wait times in emergency department with interpretable eXtreme
+gradient boosting,'' \textit{PLOS Digit. Health}, vol. 4, no. 3, 2025.
+[Online]. Available: \url{https://doi.org/10.1371/journal.pdig.0000751}
+
+\bibitem{xie2022}
+F. Xie, J. Zhou, J. W. Lee et al., ``Benchmarking emergency department
+prediction models with machine learning and public electronic health
+records,'' \textit{Sci. Data}, vol. 9, p. 658, Oct. 2022. [Online].
+Available: \url{https://doi.org/10.1038/s41597-022-01782-9}
+
+\bibitem{ricciardi2024}
+C. Ricciardi et al., ``Evaluation of different machine learning algorithms
+for predicting the length of stay in the emergency departments: a
+single-centre study,'' \textit{Front. Digit. Health}, vol. 5, p. 1323849,
+Jan. 2024. [Online]. Available:
+\url{https://doi.org/10.3389/fdgth.2023.1323849}
+
+\bibitem{seo2024}
+H. Seo et al., ``Prediction of hospitalization and waiting time within 24
+hours of emergency department patients with unstructured text data,''
+\textit{Health Care Manag. Sci.}, vol. 27, pp. 114--129, 2024. [Online].
+Available: \url{https://doi.org/10.1007/s10729-023-09660-5}
+
+\bibitem{wang2025interp}
+H. Wang, N. Sambamoorthi, D. Sandlin, and U. Sambamoorthi, ``Interpretable
+machine learning models for prolonged emergency department wait time
+prediction,'' \textit{BMC Health Serv. Res.}, vol. 25, p. 403, Mar. 2025.
+[Online]. Available: \url{https://doi.org/10.1186/s12913-025-12535-w}
+
+\bibitem{sulaiman2025}
+W. A. Sulaiman et al., ``Leveraging machine learning and rule extraction for
+enhanced transparency in emergency department length of stay prediction,''
+\textit{Front. Digit. Health}, vol. 6, p. 1498939, Feb. 2025. [Online].
+Available: \url{https://doi.org/10.3389/fdgth.2024.1498939}
+
+\bibitem{wu2025}
+W. Wu et al., ``Development of an emergency department length-of-stay
+prediction model based on machine learning,'' \textit{World J. Emerg. Med.},
+vol. 16, no. 3, pp. 220--224, 2025. [Online]. Available:
+\url{https://doi.org/10.5847/wjem.j.1920-8642.2025.048}
+
+\bibitem{vural2025}
+O. Vural et al., ``An artificial intelligence-based framework for predicting
+emergency department overcrowding: development and evaluation study,''
+\textit{JMIR Med. Inform.}, vol. 13, p. e73960, 2025. [Online]. Available:
+\url{https://doi.org/10.2196/73960}
+
+\bibitem{lett2025}
+E. Lett et al., ``Intersectional and marginal debiasing in prediction models
+for emergency admissions,'' \textit{JAMA Netw. Open}, vol. 8, no. 5,
+p. e2512947, May 2025. [Online]. Available:
+\url{https://doi.org/10.1001/jamanetworkopen.2025.12947}
+
+\bibitem{sun2024}
+L. Sun et al., ``ED-Copilot: reduce emergency department wait time with
+language model diagnostic assistance,'' in \textit{Proc. 41st Int. Conf.
+Mach. Learn. (ICML)}, PMLR, vol. 235, pp. 46942--46956, Jul. 2024. [Online].
+Available: \url{https://proceedings.mlr.press/v235/sun24a.html}
+
+\bibitem{mimic}
+A. Johnson et al., ``MIMIC-IV-ED (Version 2.2),'' PhysioNet, Jan. 2023.
+[Online]. Available: \url{https://doi.org/10.13026/5ntk-km72}
+
+\bibitem{shap}
+S. M. Lundberg and S.-I. Lee, ``A unified approach to interpreting model
+predictions,'' in \textit{Adv. Neural Inf. Process. Syst.}, vol. 30, 2017.
+
+% ---- 5 NEW REFERENCES ADDED FOR THE FINAL PAPER ----
+
+\bibitem{morley2018}
+C. Morley, M. Unwin, G. M. Peterson, J. Stankovich, and L. Kinsman,
+``Emergency department crowding: A systematic review of causes, consequences
+and solutions,'' \textit{PLOS ONE}, vol. 13, no. 8, p. e0203316, Aug. 2018.
+[Online]. Available: \url{https://doi.org/10.1371/journal.pone.0203316}
+
+\bibitem{gilboy2012}
+N. Gilboy, P. Tanabe, D. Travers, and A. M. Rosenau, ``Emergency Severity
+Index (ESI): A Triage Tool for Emergency Department Care, Version 4.
+Implementation Handbook,'' Agency for Healthcare Research and Quality,
+Rockville, MD, AHRQ Publication No. 12-0014, 2012.
+
+\bibitem{breiman2001}
+L. Breiman, ``Random forests,'' \textit{Machine Learning}, vol. 45, no. 1,
+pp. 5--32, Oct. 2001. [Online]. Available:
+\url{https://doi.org/10.1023/A:1010933404324}
+
+\bibitem{chen2016xgboost}
+T. Chen and C. Guestrin, ``XGBoost: A scalable tree boosting system,'' in
+\textit{Proc. 22nd ACM SIGKDD Int. Conf. Knowl. Discov. Data Min.}, 2016,
+pp. 785--794. [Online]. Available:
+\url{https://doi.org/10.1145/2939672.2939785}
+
+\bibitem{ke2017lightgbm}
+G. Ke et al., ``LightGBM: A highly efficient gradient boosting decision
+tree,'' in \textit{Adv. Neural Inf. Process. Syst.}, vol. 30, 2017,
+pp. 3146--3154.
+
+% ---- additional supporting references used in the body ----
+
+\bibitem{lundberg2018}
+S. M. Lundberg, G. G. Erion, and S.-I. Lee, ``Consistent individualized
+feature attribution for tree ensembles,'' \textit{arXiv:1802.03888}, 2018.
+[Online]. Available: \url{https://arxiv.org/abs/1802.03888}
+
+\bibitem{rajkomar2018}
+A. Rajkomar, M. Hardt, M. D. Howell, G. Corrado, and M. H. Chin, ``Ensuring
+fairness in machine learning to advance health equity,'' \textit{Annals of
+Internal Medicine}, vol. 169, no. 12, pp. 866--872, Dec. 2018. [Online].
+Available: \url{https://doi.org/10.7326/M18-1990}
+
+\bibitem{obermeyer2019}
+Z. Obermeyer, B. Powers, C. Vogeli, and S. Mullainathan, ``Dissecting racial
+bias in an algorithm used to manage the health of populations,''
+\textit{Science}, vol. 366, no. 6464, pp. 447--453, Oct. 2019. [Online].
+Available: \url{https://doi.org/10.1126/science.aax2342}
+
+\bibitem{derlet2002}
+R. W. Derlet and J. R. Richards, ``Emergency department overcrowding in
+Florida, New York, and Texas,'' \textit{Southern Medical Journal}, vol. 95,
+no. 8, pp. 846--849, 2002.
+
+\bibitem{bernstein2009}
+S. L. Bernstein et al., ``The effect of emergency department crowding on
+clinically oriented outcomes,'' \textit{Acad. Emerg. Med.}, vol. 16, no. 1,
+pp. 1--10, Jan. 2009. [Online]. Available:
+\url{https://doi.org/10.1111/j.1553-2712.2008.00295.x}
+
+\end{thebibliography}
+
+\clearpage
+
+%==============================================================================
+\appendix
+%==============================================================================
+This appendix collects every numerical table referenced in the body of the
+paper. Each table is structured as a synthesis grouped by theme, method, or
+clinical role---rather than a flat list---so that the reader can scan for
+patterns across rows.
+\label{app:tables}
+
+% Tighten spacing between consecutive tables in the appendix
+\setlength{\textfloatsep}{6pt plus 1pt minus 1pt}
+\setlength{\floatsep}{6pt plus 1pt minus 1pt}
+\setlength{\intextsep}{6pt plus 1pt minus 1pt}
+
+% ---------- Table I: Synthesis of literature ----------
+\begin{table*}[!t]
+\caption{Synthesis of the Twelve Reviewed Studies, Grouped by Theme}
 \label{tab:summary}
 \renewcommand{\arraystretch}{1.2}
-\begin{tabular}{clp{2.8cm}p{2.4cm}p{4.2cm}}
+\centering
+\begin{tabular}{p{2.0cm}p{3.5cm}p{2.4cm}p{2.6cm}p{4.2cm}}
 \toprule
-\textbf{\#} & \textbf{Paper (Short)} & \textbf{Year / Model(s)} & \textbf{Best Metric} & \textbf{Key Gap} \\
+\textbf{Theme} & \textbf{Study} & \textbf{Year / Method} & \textbf{Best Metric} & \textbf{Gap Left Open} \\
 \midrule
-1  & ML \& NLP for ED Triage (SLR) \cite{porto2024}   & 2024 / BERT, SVM, LSTM       & AUC $\sim$0.85+       & No wait time regression; no SHAP \\
-2  & Admission from Triage (SLR) \cite{slr2025}        & 2025 / RF, XGBoost, LR       & AUC 0.81--0.93        & Binary only; no public dataset \\
-3  & XGBoost Fairness in ED \cite{wang2025fair}         & 2025 / XGBoost + SHAP        & AUC $\approx$0.72     & Binary only; no ESI segmentation \\
-4  & MIMIC-IV-ED Benchmark \cite{xie2022}              & 2022 / GB, RF, MLP           & Outperforms MEWS/NEWS & No wait time; no SHAP; no fairness \\
-5  & ML for ED Length of Stay \cite{ricciardi2024}      & 2024 / RF, DT, SVM           & AUC $\approx$0.80     & Binary; no SHAP; no segmentation \\
-6  & Wait Time + NLP Prediction \cite{seo2024}          & 2024 / LightGBM + NLP        & Best AUC-ROC overall  & Single center; no SHAP; no fairness \\
-7  & Interpretable ML for ED \cite{wang2025interp}      & 2025 / XGBoost, RF, ANN, SVM & Best Acc/Recall/F1    & Binary; ESI-3 only; no public data \\
-8  & ML + TE2Rules for LOS \cite{sulaiman2025}          & 2025 / GB + TE2Rules         & Best classification   & Binary; single center; no regression \\
-9  & ED LOS Regression (China) \cite{wu2025}            & 2025 / LightGBM              & Lowest MAE \& RMSE    & Single center; no SHAP; no fairness \\
-10 & AI Framework for Overcrowding \cite{vural2025}     & 2025 / TSiTPlus; XCMPlus     & MAE 4.19; R$^2$ 0.44 & Aggregate count, not patient-level \\
-11 & Intersectional Fairness in ED \cite{lett2025}      & 2025 / XGBoost (intersect.)  & AUROC 0.85            & Admission only; no regression \\
-12 & ED-Copilot: LLM + RL \cite{sun2024}               & 2024 / BioGPT + RL           & Halved avg lab wait   & Binary targets; no ESI segmentation \\
+\multirow{2}{*}{\parbox{2.0cm}{Systematic\\reviews}}
+ & Porto~\cite{porto2024}             & 2024 / BERT, SVM, LSTM         & AUC $\sim$0.85+      & No regression; no SHAP \\
+ & Multi-author SLR~\cite{slr2025}     & 2025 / RF, XGBoost, LR         & AUC 0.81--0.93       & Binary only; no public dataset \\
+\midrule
+\multirow{4}{*}{\parbox{2.0cm}{Empirical\\wait time / LOS}}
+ & Wang (fairness)~\cite{wang2025fair} & 2025 / XGBoost + SHAP          & AUC $\approx$0.72    & Binary only; ESI-3 only \\
+ & Ricciardi~\cite{ricciardi2024}      & 2024 / RF, DT, SVM             & AUC $\approx$0.80    & Binary; no SHAP; no segmentation \\
+ & Seo~\cite{seo2024}                  & 2024 / LightGBM + NLP          & Best AUC-ROC overall & Single center; no fairness \\
+ & Wu~\cite{wu2025}                    & 2025 / LightGBM (regression)   & Lowest MAE / RMSE    & Single center; no SHAP; no fairness \\
+\midrule
+\multirow{2}{*}{\parbox{2.0cm}{Benchmarks /\\interpretability}}
+ & Xie~\cite{xie2022}                  & 2022 / GB, RF, MLP             & Beats MEWS/NEWS      & No wait time; no SHAP; no fairness \\
+ & Sulaiman~\cite{sulaiman2025}        & 2025 / GB + TE2Rules           & Best classification  & Binary; single center; no regression \\
+\midrule
+\multirow{3}{*}{\parbox{2.0cm}{Fairness /\\overcrowding /\\advanced AI}}
+ & Vural~\cite{vural2025}              & 2025 / TSiTPlus, XCMPlus       & MAE 4.19; R$^2$ 0.56 & Aggregate count; not patient-level \\
+ & Lett~\cite{lett2025}                & 2025 / XGBoost (intersect.)    & AUROC 0.85           & Admission only; no regression \\
+ & Sun (ED-Copilot)~\cite{sun2024}     & 2024 / BioGPT + RL             & Halved avg lab wait  & Binary targets; no ESI segmentation \\
+\midrule
+\multirow{1}{*}{\parbox{2.0cm}{Interpretable\\(directly compared)}}
+ & Wang (interp.)~\cite{wang2025interp} & 2025 / XGB, RF, ANN, SVM      & Best Acc/Recall/F1   & Binary; ESI-3 only; no public data \\
 \bottomrule
 \end{tabular}
 \end{table*}
 
-\subsection{Porto (2024) --- ML \& NLP for ED Triage}
-Porto et al.~\cite{porto2024} present a PRISMA 2020 systematic review analyzing how ML
-and NLP algorithms improve triage accuracy. Models reviewed included decision trees,
-SVMs, neural networks (LSTM, BERT), and NLP approaches. ML models consistently
-outperformed traditional triage scoring scales, but the review identified a complete
-absence of continuous wait time regression and limited explainability work.
-
-\subsection{Multiple Authors (2025) --- Admission Prediction from Triage}
-This PRISMA-compliant SLR~\cite{slr2025} evaluated ML models on ED triage data for
-predicting inpatient admissions. Seven studies with rigorous methodology achieved
-AUC-ROC of 0.81--0.93, with random forest and gradient boosting as top performers,
-confirming that triage features (vitals, ESI level, chief complaint) are strong
-predictors.
-
-\subsection{Wang et al.\ (2025) --- XGBoost Fairness in ED Wait Times}
-Wang et al.~\cite{wang2025fair} developed an interpretable XGBoost model for predicting
-prolonged ED wait times ($\geq$30 min) in ESI-3 patients. XGBoost achieved
-AUC $\approx$ 0.72, and SHAP identified triage ESI level and arrival hour as the top
-predictors. Performance disparities were found across race/ethnicity and insurance type,
-providing a direct methodological template and performance benchmark for our project.
-
-\subsection{Xie et al.\ (2022) --- MIMIC-IV-ED Benchmark Suite}
-Xie et al.~\cite{xie2022} created the first open-source benchmark dataset and pipeline
-for ED prediction using MIMIC-IV-ED ($\sim$400,000 ED visits). Gradient boosting and
-random forest outperformed all clinical scoring systems. This paper provides the
-preprocessing pipeline and benchmark structure our project builds upon.
-
-\subsection{Ricciardi et al.\ (2024) --- ML for ED Length of Stay}
-Ricciardi et al.~\cite{ricciardi2024} evaluated ML classifiers for predicting prolonged
-ED LOS ($\geq$4 hours) on 496,172 admissions from Italy. Random Forest achieved best
-performance (AUC $\approx$ 0.80), validating that triage level, arrival time, and
-demographics are sufficient predictors---exactly our feature set.
-
-\subsection{Seo et al.\ (2024) --- Wait Time Prediction with NLP}
-Seo et al.~\cite{seo2024} developed ML models integrating structured triage data with
-NLP-processed chief complaint text on 271,143 ED patients. LightGBM achieved the best
-performance and a real-time clinical dashboard prototype was developed, directly
-modeling our target outcome (ED waiting time).
-
-\subsection{Wang, Sambamoorthi et al.\ (2025) --- Interpretable ML for ED Wait Time}
-Wang et al.~\cite{wang2025interp} compared five ML models for predicting prolonged ED
-wait times in ESI-3 patients using SHAP values and partial dependency plots. XGBoost
-and Random Forest achieved the best performance, directly confirming our chosen model
-family and interpretability approach. We extend this work with continuous regression,
-all 5 ESI levels, and fairness analysis.
-
-\subsection{Sulaiman et al.\ (2025) --- ML + TE2Rules for ED LOS}
-Sulaiman et al.~\cite{sulaiman2025} applied a novel explainability framework combining
-ensemble ML with TE2Rules rule extraction on 10 minimal triage/demographic variables,
-advancing the explainability agenda beyond standard SHAP and motivating rule-based
-explanation as a future extension of our pipeline.
-
-\subsection{Wu et al.\ (2025) --- ED LOS Continuous Regression}
-Wu et al.~\cite{wu2025} developed ML regression models for predicting ED LOS as a
-continuous variable on 187,028 cases. LightGBM achieved the best performance with the
-lowest MAE and RMSE. Current emergency waiting time was identified as the single top
-predictor, directly supporting our core decision to treat ED LOS as a continuous
-regression problem.
-
-\subsection{Vural et al.\ (2025) --- AI Framework for ED Overcrowding}
-Vural et al.~\cite{vural2025} evaluated 11 ML algorithms for predicting ED waiting room
-occupancy at 6-hour and 24-hour resolutions. TSiTPlus achieved MAE of 4.19 and
-R$^2$ of 0.56 for hourly prediction, extending ED prediction from individual patients
-to system-level capacity management.
-
-\subsection{Lett et al.\ (2025) --- Intersectional Fairness in ED Admissions}
-Lett et al.~\cite{lett2025} compared intersectional versus marginal fairness debiasing
-strategies in ED admission prediction using MIMIC-IV-ED. AUROC was 0.85 for both
-baseline and intersectionally debiased models, with intersectional debiasing reducing
-subgroup calibration error by 22.3\% versus 11.3\% for marginal debiasing, directly
-motivating the fairness analysis dimension of our project.
-
-\subsection{Sun et al.\ (2024) --- ED-Copilot: LLM + RL}
-Sun et al.~\cite{sun2024} introduced ED-Copilot, combining BioGPT with a reinforcement
-learning agent to recommend lab tests that minimize ED wait time. The system reduced
-average laboratory wait time by approximately 50\% ($\sim$4 hours to $\sim$2 hours),
-representing the most advanced AI paradigm in the review.
-
-% =============================================================
-\section{Synthesis and Identified Research Gaps}
-% =============================================================
-
-\subsection{Overall Trends}
-A clear trend across all twelve articles confirms that gradient boosting ensemble
-methods (XGBoost, LightGBM, Random Forest) consistently outperform both traditional
-clinical scoring systems and simpler linear models. Growing emphasis on SHAP-based
-interpretability, consolidation around public benchmark datasets, and increasing
-attention to algorithmic fairness are the three other major trends observed.
-
-\subsection{Identified Research Gaps}
-The following gaps recur systematically:
-\begin{itemize}
-    \item \textbf{Continuous regression:} Ten of twelve studies use binary
-    classification. Only Wu et al.~\cite{wu2025} and Seo et al.~\cite{seo2024} model
-    wait time as a continuous variable.
-    \item \textbf{Triage-level segmentation:} No study reports performance broken down
-    by all five ESI triage levels.
-    \item \textbf{SHAP interpretability:} Only four of twelve studies apply SHAP;
-    eight use no interpretability tool.
-    \item \textbf{Public dataset reproducibility:} Nine of twelve studies use
-    proprietary single-center data.
-    \item \textbf{Fairness analysis:} Only two of twelve studies formally assess
-    algorithmic fairness.
-\end{itemize}
-
-% =============================================================
-\section{Research Questions}
-% =============================================================
-
-Based on our literature review, the following research questions guide our project:
-\begin{enumerate}
-    \item \textbf{RQ1 (Prediction Accuracy):} Can regression-based gradient boosting
-    models predict ED LOS as a continuous variable (in minutes) with lower error than
-    binary classification baselines?
-    \item \textbf{RQ2 (Triage Segmentation):} Do model performance and key predictive
-    features vary significantly across ESI triage severity levels (1--5)?
-    \item \textbf{RQ3 (Interpretability):} Which features most strongly drive ED LOS
-    predictions according to SHAP value analysis, and do these align with the
-    literature?
-    \item \textbf{RQ4 (Fairness):} Does predictive performance differ significantly
-    across demographic subgroups (race/ethnicity, gender, age group)?
-\end{enumerate}
-
-% =============================================================
-\section{Data Collection and Wrangling}
-% =============================================================
-
-\subsection{Dataset Description}
-We use the Hospital Emergency Room Visits dataset (Kaggle, CC0 license), structured to
-mirror the MIMIC-IV-ED benchmark~\cite{xie2022}. The raw dataset contains \textbf{9,216
-ED visits} and \textbf{17 features}, including structured triage data, vital signs,
-patient demographics, arrival context, and disposition outcomes.
-Table~\ref{tab:dictionary} presents the full data dictionary.
-
-\begin{table}[htbp]
+% ---------- Table: Data dictionary, GROUPED BY CLINICAL ROLE ----------
+\begin{table}[H]
 \centering
-\caption{Data Dictionary (Raw Dataset, N = 9,216 rows, 17 features)}
+\caption{Raw Data Dictionary, Grouped by Clinical Role ($N=9{,}216$)}
 \label{tab:dictionary}
-\renewcommand{\arraystretch}{1.1}
-\begin{tabular}{clll}
+\renewcommand{\arraystretch}{1.15}
+\begin{tabular}{p{1.9cm}p{3.0cm}p{2.5cm}}
 \toprule
-\textbf{\#} & \textbf{Feature} & \textbf{Type} & \textbf{Description} \\
+\textbf{Role} & \textbf{Field(s)} & \textbf{Type / Range} \\
 \midrule
-1  & \texttt{patient\_id}        & int64   & Unique visit identifier \\
-2  & \texttt{age}                & int64   & Patient age (years) \\
-3  & \texttt{gender}             & object  & Biological sex (M / F) \\
-4  & \texttt{race}               & object  & Self-reported race/ethnicity \\
-5  & \texttt{arrival\_hour}      & int64   & Hour of arrival (0--23) \\
-6  & \texttt{arrival\_transport} & object  & Mode of arrival \\
-7  & \texttt{acuity}             & int64   & ESI triage level (1--5) \\
-8  & \texttt{pain\_score}        & float64 & Pain score (0--10) \\
-9  & \texttt{heartrate}          & float64 & Heart rate (bpm) \\
-10 & \texttt{sbp}                & float64 & Systolic BP (mmHg) \\
-11 & \texttt{dbp}                & float64 & Diastolic BP (mmHg) \\
-12 & \texttt{temperature}        & float64 & Body temperature ($^\circ$F) \\
-13 & \texttt{o2sat}              & float64 & O$_2$ saturation (\%) \\
-14 & \texttt{resprate}           & float64 & Respiratory rate (br/min) \\
-15 & \texttt{disposition}        & object  & Discharge disposition \\
-16 & \texttt{was\_admitted}      & int64   & 1 if admitted, 0 otherwise \\
-17 & \textbf{\texttt{ed\_los\_minutes}} & float64 & \textbf{TARGET: ED LOS (min)} \\
+Identifier
+ & \texttt{patient\_id} & int / unique \\
+\midrule
+\multirow{3}{*}{\parbox{1.9cm}{Demographics}}
+ & \texttt{age}    & int / 0--100+ \\
+ & \texttt{gender} & cat. / M, F \\
+ & \texttt{race}   & cat. / 5 levels \\
+\midrule
+\multirow{2}{*}{\parbox{1.9cm}{Arrival\\context}}
+ & \texttt{arrival\_hour}      & int / 0--23 \\
+ & \texttt{arrival\_transport} & cat. / 4 levels \\
+\midrule
+\multirow{2}{*}{Triage}
+ & \texttt{acuity}      & ord. / 1--5 (ESI) \\
+ & \texttt{pain\_score} & float / 0--10 \\
+\midrule
+\multirow{6}{*}{\parbox{1.9cm}{Vital\\signs}}
+ & \texttt{heartrate}   & float / bpm \\
+ & \texttt{sbp}         & float / mmHg \\
+ & \texttt{dbp}         & float / mmHg \\
+ & \texttt{temperature} & float / $^\circ$F \\
+ & \texttt{o2sat}       & float / \% \\
+ & \texttt{resprate}    & float / br/min \\
+\midrule
+\multirow{2}{*}{Disposition}
+ & \texttt{disposition}   & cat. / 5 levels \\
+ & \texttt{was\_admitted} & bin / 0/1 \\
+\midrule
+Target
+ & \texttt{ed\_los\_minutes} & float / minutes \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\subsection{Target Variable}
-The target variable is \texttt{ed\_los\_minutes}, a continuous measure of total time
-spent in the ED in minutes. Table~\ref{tab:target} summarizes its distribution. The
-distribution is strongly right-skewed (mean 189.8 min, median 153.7 min), with extreme
-values up to 2,644.9 minutes representing complex or boarding cases.
-Log-transformation (\texttt{log1p}) normalizes the distribution, justifying its use as
-a preprocessing step for Milestone~3 regression modeling.
-
-\begin{table}[htbp]
+% ---------- Table: target distribution synthesis ----------
+\begin{table}[H]
 \centering
-\caption{Target Variable: \texttt{ed\_los\_minutes} (N = 9,216)}
+\caption{Target Variable Distribution, Grouped by Distribution Region}
 \label{tab:target}
-\renewcommand{\arraystretch}{1.1}
-\begin{tabular}{lr}
+\renewcommand{\arraystretch}{1.15}
+\begin{tabular}{p{2.0cm}lr}
 \toprule
-\textbf{Statistic} & \textbf{Value} \\
+\textbf{Region} & \textbf{Statistic} & \textbf{Value (min)} \\
 \midrule
-Mean               & 189.8 min \\
-Std                & 141.7 min \\
-Min                & 8.6 min \\
-25th percentile    & 95.6 min \\
-Median (50th)      & 153.7 min \\
-75th percentile    & 241.6 min \\
-Max                & 2,644.9 min \\
+\multirow{2}{*}{Centrality} & Mean   & 189.8 \\
+                            & Median &  153.7 \\
+\midrule
+Spread                      & Std    & 141.7 \\
+\midrule
+\multirow{4}{*}{Tails}      & Min               &     8.6 \\
+                            & 25th percentile   &    95.6 \\
+                            & 75th percentile   &   241.6 \\
+                            & Max               & 2{,}644.9 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\subsection{Missing Value Analysis}
-Seven features contained missing values, all confined to vital signs---consistent with
-real-world ED triage settings. No feature exceeded 12\% missingness so all were
-retained and imputed. Table~\ref{tab:missing} summarizes the missing value profile.
-
-\begin{table}[htbp]
+% ---------- Table: missing values, GROUPED BY MISSINGNESS SEVERITY ----------
+\begin{table}[H]
 \centering
-\caption{Missing Value Summary (Raw Dataset, Total = 5,156 cells, 3.3\%)}
+\caption{Missing-Value Profile, Grouped by Severity (Total 5{,}156 cells, 3.3\%)}
 \label{tab:missing}
-\renewcommand{\arraystretch}{1.1}
-\begin{tabular}{lrr}
+\renewcommand{\arraystretch}{1.15}
+\begin{tabular}{p{2.2cm}lrr}
 \toprule
-\textbf{Feature} & \textbf{Missing Count} & \textbf{Missing \%} \\
+\textbf{Severity} & \textbf{Field} & \textbf{Count} & \textbf{\%} \\
 \midrule
-temperature  & 1,105 & 11.99\% \\
-resprate     &   921 &  9.99\% \\
-o2sat        &   829 &  9.00\% \\
-pain\_score  &   737 &  8.00\% \\
-dbp          &   552 &  5.99\% \\
-sbp          &   552 &  5.99\% \\
-heartrate    &   460 &  4.99\% \\
+High ($\geq$10\%)
+ & \texttt{temperature} & 1{,}105 & 11.99 \\
+\midrule
+\multirow{3}{*}{\parbox{2.2cm}{Moderate\\(8--10\%)}}
+ & \texttt{resprate}    &  921 & 9.99 \\
+ & \texttt{o2sat}       &  829 & 9.00 \\
+ & \texttt{pain\_score} &  737 & 8.00 \\
+\midrule
+\multirow{3}{*}{\parbox{2.2cm}{Low\\($\leq$6\%)}}
+ & \texttt{dbp}        & 552 & 5.99 \\
+ & \texttt{sbp}        & 552 & 5.99 \\
+ & \texttt{heartrate}  & 460 & 4.99 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\subsection{Data Cleaning and Preprocessing}
-The following wrangling steps were applied sequentially:
-
-\begin{enumerate}
-    \item \textbf{Missing value imputation:} Zero rows were dropped due to missing
-    target values (\texttt{ed\_los\_minutes} was complete). Numeric vital signs were
-    imputed using median imputation. Categorical fields were imputed with their mode:
-    gender $\rightarrow$ ``F'', race $\rightarrow$ ``WHITE'',
-    arrival\_transport $\rightarrow$ ``WALK IN'', disposition $\rightarrow$ ``HOME''.
-    After imputation, remaining missing values = 0.
-
-    \item \textbf{Outlier detection and treatment:} IQR analysis identified
-    415 outliers (4.50\%) in \texttt{ed\_los\_minutes} (upper fence: 460.8 min) and a
-    combined 628 outliers across vital signs (0.44\%--2.42\%). Z-score analysis
-    ($|Z|>3$) confirmed 158 extreme LOS values (1.71\%). Clinical reference bounds
-    were applied: heart rate [30, 250] bpm; SBP [60, 280] mmHg; DBP [30, 180] mmHg;
-    temperature [93, 107]$^\circ$F; SpO$_2$ [50, 100]\%; respiratory rate [4, 50]
-    br/min; pain score [0, 10]; LOS [5, 4320] min. No values fell outside these
-    clinical bounds after imputation.
-
-    \item \textbf{Label encoding:} Four categorical features were label-encoded:
-    gender ($F=0$, $M=1$); race (ASIAN=0, BLACK/AFRICAN AMERICAN=1, HISPANIC=2,
-    OTHER=3, WHITE=4); arrival\_transport (AMBULANCE=0, OTHER=1, REFERRED=2,
-    WALK IN=3); disposition (ADMITTED=0, HOME=1, LEFT WITHOUT BEING SEEN=2,
-    OBSERVATION=3, TRANSFER=4).
-
-    \item \textbf{Feature engineering:} Five new features were derived:
-    \textit{shock\_index} (HR/SBP; mean=0.66, std=0.19, range: 0.21--1.97),
-    \textit{pulse\_pressure} (SBP$-$DBP; mean=50.1 mmHg), \textit{arrival\_shift}
-    (Day: 07:00--14:59; Evening: 15:00--22:59; Night: 23:00--06:59),
-    \textit{is\_weekend} (25.0\% of visits), and \textit{age\_group} (Pediatric
-    $\leq$18; Young Adult 19--40; Middle Age 41--65; Elderly $>$65).
-
-    \item \textbf{Normalization:} StandardScaler was applied to all 19 numeric model
-    features (mean $\approx$ 0, std $\approx$ 1), consistent with Wu et
-    al.~\cite{wu2025} and Wang et al.~\cite{wang2025fair}.
-\end{enumerate}
-
-\subsection{Before vs.\ After Wrangling Summary}
-Table~\ref{tab:wrangling} compares the dataset before and after the full wrangling
-pipeline. The cleaned dataset (\texttt{team3\_ed\_waittime\_cleaned.csv}) contains
-\textbf{9,216 records} and \textbf{26 features} with zero remaining missing values.
-
-\begin{table}[htbp]
+% ---------- Table: wrangling pipeline before/after, GROUPED by PROPERTY ----------
+\begin{table}[H]
 \centering
-\caption{Dataset Before vs.\ After Wrangling}
+\caption{Wrangling Pipeline Before vs.\ After, Grouped by Property}
 \label{tab:wrangling}
-\renewcommand{\arraystretch}{1.1}
-\begin{tabular}{lrr}
+\renewcommand{\arraystretch}{1.15}
+\begin{tabular}{p{2.0cm}lrr}
 \toprule
-\textbf{Metric} & \textbf{Before} & \textbf{After} \\
+\textbf{Property} & \textbf{Metric} & \textbf{Before} & \textbf{After} \\
 \midrule
-Rows                  & 9,216   & 9,216   \\
-Columns               & 17      & 26      \\
-Missing cells         & 5,156   & 0       \\
-Missing \%            & 3.3\%   & 0.0\%   \\
-Numeric features      & 13      & 22      \\
-Categorical features  & 4       & 5       \\
-Target mean (min)     & 189.8   & 189.8   \\
-Target std (min)      & 141.7   & 141.7   \\
-Target min (min)      & 8.6     & 8.6     \\
-Target max (min)      & 2,644.9 & 2,644.9 \\
+\multirow{2}{*}{Volume}
+ & Rows                 & 9{,}216 & 9{,}216 \\
+ & Columns              & 17       & 26       \\
+\midrule
+\multirow{2}{*}{Quality}
+ & Missing cells        & 5{,}156 & 0        \\
+ & Missing \%           &    3.3   & 0.0       \\
+\midrule
+\multirow{2}{*}{Schema}
+ & Numeric features     & 13       & 22       \\
+ & Categorical features &  4       &  5       \\
+\midrule
+\multirow{4}{*}{\parbox{2.0cm}{Target\\stability}}
+ & Target mean (min)    & 189.8     & 189.8    \\
+ & Target std  (min)    & 141.7     & 141.7    \\
+ & Target min  (min)    &   8.6     &   8.6    \\
+ & Target max  (min)    & 2{,}644.9 & 2{,}644.9 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-% =============================================================
-\section{Exploratory Data Analysis}
-% =============================================================
-
-\subsection{Target Variable Distribution}
-The raw \texttt{ed\_los\_minutes} distribution is strongly right-skewed: most visits
-fall under 600 minutes (mean 189.8 min, median 153.7 min) with a long tail extending
-to 2,644.9 minutes representing complex or boarding cases. Log-transformation
-(\texttt{log1p}) brings the distribution close to normality, suggesting this
-transformation will benefit regression modeling in Milestone~3. The 25th--75th
-percentile range is 95.6--241.6 minutes.
-
-\subsection{Vital Sign Distributions}
-Table~\ref{tab:vitals} presents descriptive statistics for key triage vital signs after
-imputation. Heart rate is approximately normally distributed (mean 82.1 bpm). Systolic
-BP centers near 128.2 mmHg. Oxygen saturation is left-skewed---most patients present
-with normal SpO$_2$ (95--100\%) but a clinically important minority show dangerous
-desaturation (minimum 88.2\%). Respiratory rate is near-normally distributed at
-17.0 br/min. Shock index (mean 0.66) confirms that most patients are hemodynamically
-stable at triage, with a visible proportion exceeding the SI $>$ 1.0 shock threshold.
-
-\begin{table}[htbp]
+% ---------- Table: overall results synthesis (GROUPED BY MODEL FAMILY) ----------
+\begin{table*}[!t]
 \centering
-\caption{Vital Sign Descriptive Statistics (Post-Wrangling, N = 9,216)}
-\label{tab:vitals}
-\renewcommand{\arraystretch}{1.1}
-\begin{tabular}{lrrrrr}
+\caption{Overall Model Performance, Grouped by Model Family
+($n_{\mathrm{test}}=1{,}844$; CV on training fold)}
+\label{tab:overall}
+\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{p{2.0cm}lcccccc}
 \toprule
-\textbf{Feature} & \textbf{Mean} & \textbf{Std} & \textbf{Min} & \textbf{Median} & \textbf{Max} \\
+\textbf{Family} & \textbf{Model} &
+\textbf{Test MAE} & \textbf{Test RMSE} & \textbf{Test R$^2$} &
+\textbf{CV MAE} & \textbf{CV RMSE} & \textbf{CV R$^2$} \\
 \midrule
-heartrate    & 82.1  & 17.6 & 40.0 & 82.1  & 149.4 \\
-sbp          & 128.2 & 21.1 & 70.0 & 128.4 & 205.8 \\
-dbp          & 78.0  & 13.6 & 40.0 & 78.0  & 130.0 \\
-temperature  & 98.4  &  1.0 & 95.0 & 98.4  & 102.5 \\
-o2sat        & 97.3  &  2.1 & 88.2 & 97.5  & 100.0 \\
-resprate     & 17.0  &  3.7 &  8.0 & 17.0  &  33.8 \\
-pain\_score  &  4.8  &  2.9 &  0.0 &  5.0  &  10.0 \\
-shock\_index &  0.66 & 0.19 & 0.21 &  0.64 &   1.97 \\
+\multirow{2}{*}{\parbox{2.0cm}{Linear /\\regularized}}
+ & Linear Regression & 89.10 & 130.35 & 0.141 & 90.01 & 131.33 & 0.145 \\
+ & Ridge Regression  & \textbf{89.09} & \textbf{130.34} & \textbf{0.141} & \textbf{90.01} & \textbf{131.33} & \textbf{0.145} \\
+\midrule
+Bagged trees
+ & Random Forest     & 91.03 & 131.96 & 0.120 & 92.23 & 133.58 & 0.114 \\
+\midrule
+\multirow{2}{*}{\parbox{2.0cm}{Boosted trees}}
+ & XGBoost           & 93.80 & 134.91 & 0.080 & 94.81 & 137.18 & 0.065 \\
+ & LightGBM          & 93.42 & 134.84 & 0.081 & 94.84 & 137.26 & 0.064 \\
+\midrule
+Sanity floor
+ & Mean baseline     & 98.71 &   ---  &  ---  &  ---  &   ---  &  ---  \\
+\bottomrule
+\end{tabular}
+\end{table*}
+
+% ---------- Table: ESI-stratified, GROUPED BY ACUITY TIER ----------
+\begin{table}[H]
+\centering
+\caption{ESI-Stratified Ridge Performance, Grouped by Acuity Tier}
+\label{tab:esi}
+\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{p{1.9cm}cccccc}
+\toprule
+\textbf{Tier} & \textbf{ESI} & \textbf{$N$} & \textbf{Mean LOS} & \textbf{MAE} & \textbf{RMSE} & \textbf{R$^2$} \\
+\midrule
+\multirow{2}{*}{High acuity}
+ & 1 &   179 & 315.7 & 113.33 & 152.26 & $-$0.158 \\
+ & 2 & 1{,}159 & 265.2 & 130.28 & 174.81 & $-$0.072 \\
+\midrule
+Mid acuity
+ & 3 & 4{,}184 & 215.9 & 101.96 & 138.38 & $-$0.006 \\
+\midrule
+\multirow{2}{*}{Low acuity}
+ & 4 & 2{,}706 & 145.0 &  69.96 & 101.62 & $-$0.015 \\
+ & 5 &   988 &  91.4 &  36.96 &  48.25 & $-$0.066 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\subsection{Feature Correlation Analysis}
-Pearson correlation analysis reveals that \textit{acuity} has the strongest association
-with \texttt{ed\_los\_minutes} ($r = -0.38$), confirming that lower ESI level numbers
-(higher severity) correspond to longer LOS. All other features show very weak linear
-correlations ($|r| \leq 0.02$), including temperature ($r = -0.02$), shock index
-($r = 0.01$), and heart rate ($r = 0.01$). This confirms that ED LOS is a multivariate
-nonlinear problem where ensemble models capturing feature interactions are essential.
-The strong correlation between SBP and DBP motivates the engineered
-\textit{pulse\_pressure} feature to reduce multicollinearity.
-
-\subsection{ED LOS by ESI Triage Level}
-Table~\ref{tab:losacuity} shows that LOS varies substantially across ESI levels,
-confirming that a single pooled model would obscure important subgroup dynamics.
-ESI~Level~1 patients have the longest mean LOS (315.7 min) due to intensive workups,
-while ESI Level~5 patients have the shortest (91.4 min). ESI Level~3 accounts for the
-largest proportion of visits (4,184 of 9,216; 45.4\%), consistent with Wang et
-al.~\cite{wang2025fair}. This directly supports our Milestone~3 plan for
-triage-stratified modeling.
-
-\begin{table}[htbp]
+% ---------- Table: SHAP global importance, GROUPED BY FEATURE FAMILY ----------
+\begin{table}[H]
 \centering
-\caption{ED LOS by ESI Triage Level}
-\label{tab:losacuity}
-\renewcommand{\arraystretch}{1.1}
+\caption{Global Mean $|$SHAP$|$ for LightGBM, Grouped by Feature Family}
+\label{tab:shap}
+\renewcommand{\arraystretch}{1.15}
+\begin{tabular}{p{2.0cm}lr}
+\toprule
+\textbf{Family} & \textbf{Feature} & \textbf{Mean $|$SHAP$|$} \\
+\midrule
+Triage
+ & \texttt{acuity}      & \textbf{46.07} \\
+\midrule
+\multirow{6}{*}{\parbox{2.0cm}{Vital signs}}
+ & \texttt{o2sat}       &  7.15 \\
+ & \texttt{dbp}         &  6.27 \\
+ & \texttt{temperature} &  5.88 \\
+ & \texttt{resprate}    &  5.20 \\
+ & \texttt{heartrate}   &  4.96 \\
+ & \texttt{sbp}         &  3.94 \\
+\midrule
+\multirow{2}{*}{\parbox{2.0cm}{Engineered\\physiology}}
+ & \texttt{pulse\_pressure} & 5.85 \\
+ & \texttt{shock\_index}    & 5.07 \\
+\midrule
+Pain
+ & \texttt{pain\_score} &  3.70 \\
+\midrule
+\multirow{4}{*}{\parbox{2.0cm}{Demographics}}
+ & \texttt{age}                & 5.87 \\
+ & \texttt{race\_encoded}      & 3.49 \\
+ & \texttt{gender\_encoded}    & 1.40 \\
+ & \texttt{age\_group\_encoded}& 0.62 \\
+\midrule
+\multirow{5}{*}{\parbox{2.0cm}{Arrival /\\disposition}}
+ & \texttt{arrival\_hour}             & 3.37 \\
+ & \texttt{arrival\_transport\_enc}   & 2.15 \\
+ & \texttt{is\_weekend}               & 1.32 \\
+ & \texttt{was\_admitted}             & 1.14 \\
+ & \texttt{arrival\_shift\_encoded}   & 0.96 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% ---------- Table: fairness (race), GROUPED BY SUBGROUP SIZE ----------
+\begin{table}[H]
+\centering
+\caption{Fairness Audit by Race/Ethnicity, Grouped by Subgroup Size}
+\label{tab:fair_race}
+\renewcommand{\arraystretch}{1.15}
+\begin{tabular}{p{1.9cm}lrrr}
+\toprule
+\textbf{Tier} & \textbf{Subgroup} & \textbf{$N$} & \textbf{MAE} & \textbf{RMSE} \\
+\midrule
+\multirow{2}{*}{\parbox{1.9cm}{Large\\($N>300$)}}
+ & WHITE                  & 1{,}032 & 90.78 & 135.47 \\
+ & BLACK/AFR. AM.         &   366 & 91.23 & 130.00 \\
+\midrule
+\multirow{2}{*}{\parbox{1.9cm}{Medium\\(100--300)}}
+ & HISPANIC               &   245 & 83.05 & 118.23 \\
+ & ASIAN                  &   133 & 88.01 & 124.12 \\
+\midrule
+Small ($N<100$)
+ & OTHER                  &    68 & 75.97 & 103.64 \\
+\midrule
+\multicolumn{3}{l}{\textbf{Range (max$-$min)}} & \textbf{15.26} & \textbf{31.83} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% ---------- Table: fairness (gender), simple ----------
+\begin{table}[H]
+\centering
+\caption{Fairness Audit by Gender (Ridge, Test Set)}
+\label{tab:fair_gender}
+\renewcommand{\arraystretch}{1.15}
 \begin{tabular}{lrrr}
 \toprule
-\textbf{ESI Level} & \textbf{N} & \textbf{Mean LOS (min)} & \textbf{Median LOS (min)} \\
+\textbf{Subgroup} & \textbf{$N$} & \textbf{MAE} & \textbf{RMSE} \\
 \midrule
-1 (Most Acute)   &   179 & 315.7 & 252.7 \\
-2                & 1,159 & 265.2 & 225.0 \\
-3                & 4,184 & 215.9 & 179.6 \\
-4                & 2,706 & 145.0 & 121.5 \\
-5 (Least Acute)  &   988 &  91.4 &  75.9 \\
+Female (F) & 981 & 88.61 & 137.02 \\
+Male (M)   & 863 & 89.64 & 122.31 \\
 \midrule
-\textbf{Overall} & \textbf{9,216} & \textbf{189.8} & \textbf{153.7} \\
+\textbf{Range (max$-$min)} & --- & \textbf{1.03} & \textbf{14.71} \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\subsection{Temporal Patterns}
-Visit volume peaks during daytime hours (10:00--20:00). LOS is longer for early morning
-arrivals (02:00--06:00) as these patients tend to be more seriously ill. Evening
-arrivals coincide with the highest patient volumes, which may contribute to crowding.
-Table~\ref{tab:losshift} shows LOS by arrival shift. Night shift arrivals have the
-highest mean LOS (191.4 min) with a wider distribution, consistent with reduced
-staffing and a higher proportion of critically ill patients presenting after hours.
-These findings validate \texttt{arrival\_hour} and \texttt{arrival\_shift} as
-important predictors for Milestone~3, consistent with Wang et al.~\cite{wang2025interp}.
-
-\begin{table}[htbp]
+% ---------- Table: fairness (age), GROUPED BY LIFE STAGE ----------
+\begin{table}[H]
 \centering
-\caption{ED LOS by Arrival Shift}
-\label{tab:losshift}
-\renewcommand{\arraystretch}{1.1}
-\begin{tabular}{lrrr}
+\caption{Fairness Audit by Age Group, Grouped by Life Stage}
+\label{tab:fair_age}
+\renewcommand{\arraystretch}{1.15}
+\begin{tabular}{p{1.9cm}lrrr}
 \toprule
-\textbf{Shift} & \textbf{N} & \textbf{Mean LOS (min)} & \textbf{Median LOS (min)} \\
+\textbf{Stage} & \textbf{Subgroup} & \textbf{$N$} & \textbf{MAE} & \textbf{RMSE} \\
 \midrule
-Day     & 3,074 & 192.0 & 155.1 \\
-Evening & 3,103 & 186.2 & 151.2 \\
-Night   & 3,039 & 191.4 & 154.4 \\
+Pediatric     & $\leq$18         & 148 & 95.60 & 150.62 \\
+\midrule
+\multirow{2}{*}{Adult}
+              & 19--40 (Young)   & 600 & 93.34 & 136.35 \\
+              & 41--65 (Middle)  & 901 & 84.10 & 125.58 \\
+\midrule
+Geriatric     & $>$65 (Elderly)  & 195 & 94.13 & 115.62 \\
+\midrule
+\multicolumn{3}{l}{\textbf{Range (max$-$min)}} & \textbf{11.50} & \textbf{35.00} \\
 \bottomrule
 \end{tabular}
 \end{table}
-
-\subsection{Arrival Mode and Disposition}
-Walk-in patients form the majority of arrivals (5,714; 62.0\%), followed by ambulance
-(2,045; 22.2\%), referred (933; 10.1\%), and other (524; 5.7\%). Ambulance arrivals
-show a higher mean LOS (192.5 min) than walk-in patients (189.2 min), consistent with
-their higher acuity. Walk-in patients' high volume with relatively shorter LOS
-reflects the proportion of lower-acuity visits. Home discharge dominates disposition
-(5,302; 57.5\%), followed by admitted (2,632; 28.6\%), observation (475; 5.2\%),
-transfer (426; 4.6\%), and left-without-being-seen (381; 4.1\%).
-
-\subsection{Demographic Patterns and Fairness Signals}
-Table~\ref{tab:losrace} shows mean LOS by race/ethnicity. White patients have the
-highest mean LOS (193.3 min) while Hispanic patients have the lowest (180.9 min), a
-difference of 12.4 minutes. By gender, males have a slightly higher mean LOS (190.9
-min) than females (188.8 min), a difference of 2.1 minutes.
-Table~\ref{tab:losage} shows LOS by age group: Young Adults have the longest mean LOS
-(193.5 min) while Elderly patients have the shortest (179.2 min). These preliminary
-disparities motivate the formal fairness analysis planned for Milestone~3, building on
-the methodology of Wang et al.~\cite{wang2025fair} and Lett et al.~\cite{lett2025}.
-
-\begin{table}[htbp]
-\centering
-\caption{Mean ED LOS by Race/Ethnicity}
-\label{tab:losrace}
-\renewcommand{\arraystretch}{1.1}
-\begin{tabular}{lrr}
-\toprule
-\textbf{Race/Ethnicity} & \textbf{N} & \textbf{Mean LOS (min)} \\
-\midrule
-WHITE                   & 5,061 & 193.3 \\
-BLACK/AFRICAN AMERICAN  & 1,874 & 188.0 \\
-HISPANIC                & 1,288 & 180.9 \\
-ASIAN                   &   646 & 189.1 \\
-OTHER                   &   347 & 183.8 \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-\begin{table}[htbp]
-\centering
-\caption{Mean ED LOS by Age Group}
-\label{tab:losage}
-\renewcommand{\arraystretch}{1.1}
-\begin{tabular}{lrr}
-\toprule
-\textbf{Age Group} & \textbf{N} & \textbf{Mean LOS (min)} \\
-\midrule
-Pediatric ($\leq$18)   &   697 & 182.0 \\
-Young Adult (19--40)   & 3,113 & 193.5 \\
-Middle Age (41--65)    & 4,350 & 191.1 \\
-Elderly ($>$65)        & 1,056 & 179.2 \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-% =============================================================
-\section{Machine Learning Pipeline and Intermediate Results}
-% =============================================================
-
-\subsection{Feature Set}
-The final model feature set comprises 19 standardized variables:
-\texttt{age}, \texttt{heartrate}, \texttt{sbp}, \texttt{dbp}, \texttt{temperature},
-\texttt{o2sat}, \texttt{resprate}, \texttt{pain\_score}, \texttt{acuity},
-\texttt{shock\_index}, \texttt{pulse\_pressure}, \texttt{arrival\_hour},
-\texttt{is\_weekend}, \texttt{was\_admitted}, \texttt{gender\_encoded},
-\texttt{race\_encoded}, \texttt{arrival\_transport\_encoded},
-\texttt{arrival\_shift\_encoded}, \texttt{age\_group\_encoded}.
-
-\subsection{Models Selected}
-Based on the literature's consistent findings, we evaluate:
-\begin{itemize}
-    \item \textbf{Baseline:} Linear Regression, Ridge Regression
-    \item \textbf{Tree-based:} Random Forest Regressor
-    \item \textbf{Gradient Boosting:} XGBoost Regressor, LightGBM Regressor
-\end{itemize}
-
-\subsection{Evaluation Metrics and Train/Test Split}
-Models are evaluated on MAE, RMSE, and R$^2$ on a held-out test set, consistent with
-Wu et al.~\cite{wu2025}. An 80/20 chronological train/test split is applied to simulate
-real deployment conditions.
-
-\subsection{Expected Results and SHAP Analysis}
-Based on the correlation analysis ($r = -0.38$ for acuity) and literature findings,
-ESI acuity level is expected to be the dominant SHAP predictor, consistent with Wang et
-al.~\cite{wang2025fair} and Wang et al.~\cite{wang2025interp}. Arrival hour,
-shock index, and \texttt{was\_admitted} are expected to rank among the top features.
-Gradient boosting models (XGBoost, LightGBM) are expected to outperform the linear
-baselines given the weak linear correlations and strong nonlinear interactions in the
-feature space. Full model results, SHAP summary plots, and patient-level force plots
-will be delivered in Milestone~3.
-
-% =============================================================
-\section{Next Steps Toward Milestone 3}
-% =============================================================
-
-\begin{enumerate}
-    \item \textbf{Model training and evaluation:} Train all five models on the
-    9,216-record cleaned dataset and report MAE, RMSE, and R$^2$.
-    \item \textbf{Hyperparameter tuning:} Apply grid search with 5-fold
-    cross-validation to XGBoost and LightGBM.
-    \item \textbf{Triage-stratified modeling:} Train and evaluate separate models for
-    each ESI level (1--5) and compare against the pooled model, addressing the gap
-    absent from all twelve reviewed studies.
-    \item \textbf{Full SHAP analysis:} Generate population-level SHAP summary plots
-    and patient-level force plots for clinical interpretability.
-    \item \textbf{Fairness analysis:} Compute MAE and RMSE broken down by
-    race/ethnicity (5 groups), gender (2 groups), and age group (4 groups) to quantify
-    the disparities identified in Section~VII-F.
-    \item \textbf{Final paper:} Complete the research paper with full results,
-    discussion, and conclusion sections.
-\end{enumerate}
-
-% =============================================================
-\section{Conclusion}
-% =============================================================
-
-The twelve reviewed articles confirm that gradient boosting ensemble methods are
-well-suited to predicting ED wait times, and no study to date has combined continuous
-wait time regression, ESI-level segmentation, SHAP interpretability, demographic
-fairness analysis, and a publicly accessible dataset in a single coherent framework.
-Our wrangling pipeline successfully processed 9,216 ED visits from 17 raw features to
-26 engineered features with zero remaining missing values. EDA confirms that ESI
-acuity level ($r = -0.38$ with LOS) is the dominant predictor, with mean LOS ranging
-from 315.7 min (ESI~1) to 91.4 min (ESI~5). Preliminary demographic disparities---up
-to 12.4 minutes across race/ethnicity groups---motivate the formal fairness analysis
-in Milestone~3. Our project builds directly on the methodological foundations of Xie
-et al.~\cite{xie2022}, Wang et al.~\cite{wang2025fair}, Wu et al.~\cite{wu2025},
-Lett et al.~\cite{lett2025}, and Wang et al.~\cite{wang2025interp} to deliver a
-reproducible, interpretable, and fair ED wait time prediction system.
-
-\section*{Acknowledgments}
-This work was conducted as part of the CSCI-7090 Data Science and Machine Learning
-course project, Team~3, Spring 2026, Georgia Southern University.
-
-% =============================================================
-\begin{thebibliography}{00}
-
-\bibitem{porto2024}
-B. M. Porto, ``Improving triage performance in emergency departments using machine
-learning and natural language processing: a systematic review,'' \textit{BMC Emerg.
-Med.}, vol. 24, no. 1, p. 219, 2024. [Online]. Available:
-\url{https://doi.org/10.1186/s12873-024-01135-2}
-
-\bibitem{slr2025}
-Multiple authors, ``Predicting inpatient admissions from emergency department triage
-using machine learning: a systematic review,'' \textit{JACEP Open}, Elsevier, 2025.
-[Online]. Available:
-\url{https://www.sciencedirect.com/science/article/pii/S2949761225000045}
-
-\bibitem{wang2025fair}
-Wang et al., ``Evaluating fairness of machine learning prediction of prolonged wait
-times in emergency department with interpretable eXtreme gradient boosting,''
-\textit{PLOS Digit. Health}, vol. 4, no. 3, 2025. [Online]. Available:
-\url{https://doi.org/10.1371/journal.pdig.0000751}
-
-\bibitem{xie2022}
-F. Xie, J. Zhou, J. W. Lee et al., ``Benchmarking emergency department prediction
-models with machine learning and public electronic health records,'' \textit{Sci.
-Data}, vol. 9, p. 658, Oct. 2022. [Online]. Available:
-\url{https://doi.org/10.1038/s41597-022-01782-9}
-
-\bibitem{ricciardi2024}
-C. Ricciardi et al., ``Evaluation of different machine learning algorithms for
-predicting the length of stay in the emergency departments: a single-centre study,''
-\textit{Front. Digit. Health}, vol. 5, p. 1323849, Jan. 2024. [Online]. Available:
-\url{https://doi.org/10.3389/fdgth.2023.1323849}
-
-\bibitem{seo2024}
-H. Seo et al., ``Prediction of hospitalization and waiting time within 24 hours of
-emergency department patients with unstructured text data,'' \textit{Health Care
-Manag. Sci.}, vol. 27, pp. 114--129, 2024. [Online]. Available:
-\url{https://doi.org/10.1007/s10729-023-09660-5}
-
-\bibitem{wang2025interp}
-H. Wang, N. Sambamoorthi, D. Sandlin, and U. Sambamoorthi, ``Interpretable machine
-learning models for prolonged emergency department wait time prediction,'' \textit{BMC
-Health Serv. Res.}, vol. 25, p. 403, Mar. 2025. [Online]. Available:
-\url{https://doi.org/10.1186/s12913-025-12535-w}
-
-\bibitem{sulaiman2025}
-W. A. Sulaiman et al., ``Leveraging machine learning and rule extraction for enhanced
-transparency in emergency department length of stay prediction,'' \textit{Front.
-Digit. Health}, vol. 6, p. 1498939, Feb. 2025. [Online]. Available:
-\url{https://doi.org/10.3389/fdgth.2024.1498939}
-
-\bibitem{wu2025}
-W. Wu et al., ``Development of an emergency department length-of-stay prediction model
-based on machine learning,'' \textit{World J. Emerg. Med.}, vol. 16, no. 3,
-pp. 220--224, 2025. [Online]. Available:
-\url{https://doi.org/10.5847/wjem.j.1920-8642.2025.048}
-
-\bibitem{vural2025}
-O. Vural et al., ``An artificial intelligence-based framework for predicting emergency
-department overcrowding: development and evaluation study,'' \textit{JMIR Med.
-Inform.}, vol. 13, p. e73960, 2025. [Online]. Available:
-\url{https://doi.org/10.2196/73960}
-
-\bibitem{lett2025}
-E. Lett et al., ``Intersectional and marginal debiasing in prediction models for
-emergency admissions,'' \textit{JAMA Netw. Open}, vol. 8, no. 5, p. e2512947,
-May 2025. [Online]. Available:
-\url{https://doi.org/10.1001/jamanetworkopen.2025.12947}
-
-\bibitem{sun2024}
-L. Sun et al., ``ED-Copilot: reduce emergency department wait time with language model
-diagnostic assistance,'' in \textit{Proc. 41st Int. Conf. Mach. Learn. (ICML)},
-PMLR, vol. 235, pp. 46942--46956, Jul. 2024. [Online]. Available:
-\url{https://proceedings.mlr.press/v235/sun24a.html}
-
-\bibitem{mimic}
-A. Johnson et al., ``MIMIC-IV-ED (Version 2.2),'' PhysioNet, Jan. 2023. [Online].
-Available: \url{https://doi.org/10.13026/5ntk-km72}
-
-\bibitem{shap}
-S. M. Lundberg and S.-I. Lee, ``A unified approach to interpreting model predictions,''
-in \textit{Advances in Neural Information Processing Systems}, vol. 30, 2017.
-
-\end{thebibliography}
 
 \end{document}
