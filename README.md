@@ -132,11 +132,11 @@ Our work targets all five gaps simultaneously on a single publicly-released data
 
 ---
 
-## Milestone 3 — Final ML Pipeline
+## Final ML Pipeline
 
-**Files:** `Team3_Milestone3_ED_WaitTime.ipynb`, `Team3_Milestone3_ED_WaitTime.pdf`
+**Files:** `Team3_Pipeline_Execution_and_Results.ipynb`, `Team3_Pipeline_Execution_and_Results.pdf`
 
-The Milestone 3 notebook is the final ML pipeline that produces every numerical result in `Team3_Final_Paper.pdf`. The notebook is organized into clearly headed sections, uses modular functions in every code cell, and includes a `main()` function that runs the full pipeline end-to-end.
+The ML Pipeline notebook produces every numerical result in `Team3_Final_Paper.pdf`. The notebook is organized into clearly headed sections, uses modular functions in every code cell, and includes a `main()` function that runs the full pipeline end-to-end.
 
 ### Notebook Structure
 
